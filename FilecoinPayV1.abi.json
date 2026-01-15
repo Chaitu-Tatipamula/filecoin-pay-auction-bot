@@ -1,0 +1,76 @@
+[
+  {
+    "type": "function",
+    "name": "burnForFees",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address"
+      },
+      {
+        "name": "requested",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "auctionInfo",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "startPrice",
+        "type": "uint88"
+      },
+      {
+        "name": "startTime",
+        "type": "uint168"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "accounts",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "funds",
+        "type": "uint256"
+      },
+      {
+        "name": "lockupCurrent",
+        "type": "uint256"
+      },
+      {
+        "name": "lockupRate",
+        "type": "uint256"
+      },
+      {
+        "name": "lockupLastSettledAt",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  }
+]
