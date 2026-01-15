@@ -1,9 +1,47 @@
 import { createPublicClient, createWalletClient, http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { filecoinCalibration, filecoin } from 'viem/chains'
-import filecoinPayAbi from './FilecoinPayV1.abi.json'
 
 const HALVING_INTERVAL = 302400n
+
+const FILECOIN_PAY_ABI = [
+  {
+    type: 'function',
+    name: 'burnForFees',
+    inputs: [
+      { name: 'token', type: 'address' },
+      { name: 'recipient', type: 'address' },
+      { name: 'requested', type: 'uint256' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'auctionInfo',
+    inputs: [{ name: 'token', type: 'address' }],
+    outputs: [
+      { name: 'startPrice', type: 'uint88' },
+      { name: 'startTime', type: 'uint168' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'accounts',
+    inputs: [
+      { name: 'token', type: 'address' },
+      { name: 'owner', type: 'address' },
+    ],
+    outputs: [
+      { name: 'funds', type: 'uint256' },
+      { name: 'lockupCurrent', type: 'uint256' },
+      { name: 'lockupRate', type: 'uint256' },
+      { name: 'lockupLastSettledAt', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+  },
+]
 
 /**
  * @typedef {Object} Clients
@@ -104,7 +142,7 @@ export async function getActiveAuctions(
   for (const token of tokenAddresses) {
     const auctionInfo = await publicClient.readContract({
       address: /** @type {`0x${string}`} */ (contractAddress),
-      abi: filecoinPayAbi,
+      abi: FILECOIN_PAY_ABI,
       functionName: 'auctionInfo',
       args: [token],
     })
@@ -119,7 +157,7 @@ export async function getActiveAuctions(
 
     const accountInfo = await publicClient.readContract({
       address: /** @type {`0x${string}`} */ (contractAddress),
-      abi: filecoinPayAbi,
+      abi: FILECOIN_PAY_ABI,
       functionName: 'accounts',
       args: [token, contractAddress],
     })
@@ -169,7 +207,7 @@ export async function placeBid(
   // @ts-expect-error - chain is inherited from walletClient
   const hash = await walletClient.writeContract({
     address: /** @type {`0x${string}`} */ (contractAddress),
-    abi: filecoinPayAbi,
+    abi: FILECOIN_PAY_ABI,
     functionName: 'burnForFees',
     args: [tokenAddress, recipient, amount],
     value: currentPrice,
