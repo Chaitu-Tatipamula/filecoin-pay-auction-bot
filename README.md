@@ -38,7 +38,7 @@ Create a `.env` file or set environment variables:
 - `ENVIRONMENT` - Network environment: `calibration` (default) or `mainnet`
 - `RPC_URL` - RPC endpoint (default: `https://api.calibration.node.glif.io/`)
 - `CONTRACT_ADDRESS` - FilecoinPayV1 contract address (default: `0x09a0fDc2723fAd1A7b8e3e00eE5DF73841df55a0`)
-- `DELAY` - Milliseconds between auction checks (default: `3600000` = 1 hour)
+- `DELAY` - Milliseconds between auction checks (default: `600000` = 10 minutes)
 
 ### Example .env file
 
@@ -47,7 +47,7 @@ ENVIRONMENT=calibration
 PRIVATE_KEY=0x1234567890abcdef...
 RECIPIENT=0xYourRecipientAddress
 TOKEN_ADDRESSES=0xToken1Address,0xToken2Address
-DELAY=3600000
+DELAY=600000
 ```
 
 ## Usage
