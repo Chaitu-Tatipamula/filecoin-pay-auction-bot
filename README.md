@@ -87,7 +87,6 @@ npm run lint:fix
 - [index.js](index.js) - Core library functions
 - [bin/bot.js](bin/bot.js) - Main bot entry point
 - [test/test.js](test/test.js) - Unit tests
-- [FilecoinPayV1.abi.json](FilecoinPayV1.abi.json) - Contract ABI
 
 ## How It Works
 
