@@ -52,9 +52,6 @@ const tokenAddresses = TOKEN_ADDRESSES.split(',').map((addr) => addr.trim())
 
     console.log(`Wallet address: ${walletAddress}`)
 
-    const balance = await getBalance(publicClient, walletAddress)
-    console.log(`Wallet balance: ${formatEther(balance)} FIL\n`)
-
     console.log('Initialization complete. Starting auction monitoring...\n')
 
     while (true) {
