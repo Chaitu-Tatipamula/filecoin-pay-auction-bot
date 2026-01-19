@@ -89,7 +89,8 @@ const tokenAddresses = TOKEN_ADDRESSES.split(',').map((addr) => addr.trim())
           block.timestamp + 30n,
         )
 
-        console.log(`\nSelected auction:`)
+        console.log()
+        console.log(`Selected auction:`)
         console.log(`  Token: ${selectedAuction.token}`)
         console.log(`  Bid amount: ${formatEther(bidAmount)} tokens`)
         console.log(`  Next block price: ${formatEther(nextBlockPrice)} FIL`)
