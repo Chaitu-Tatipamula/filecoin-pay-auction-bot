@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@filoz/synapse-core": "^0.1.4",
-    "viem": "^2.21.66"
+    "viem": "^2.44.4"
   },
   "devDependencies": {
     "@types/node": "^25.0.8",
