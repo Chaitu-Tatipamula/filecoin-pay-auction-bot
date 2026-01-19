@@ -1,47 +1,9 @@
 import { createPublicClient, createWalletClient, http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { filecoinCalibration, filecoin } from 'viem/chains'
-
-const HALVING_INTERVAL = 302400n
-
-const FILECOIN_PAY_ABI = [
-  {
-    type: 'function',
-    name: 'burnForFees',
-    inputs: [
-      { name: 'token', type: 'address' },
-      { name: 'recipient', type: 'address' },
-      { name: 'requested', type: 'uint256' },
-    ],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-  {
-    type: 'function',
-    name: 'auctionInfo',
-    inputs: [{ name: 'token', type: 'address' }],
-    outputs: [
-      { name: 'startPrice', type: 'uint88' },
-      { name: 'startTime', type: 'uint168' },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'accounts',
-    inputs: [
-      { name: 'token', type: 'address' },
-      { name: 'owner', type: 'address' },
-    ],
-    outputs: [
-      { name: 'funds', type: 'uint256' },
-      { name: 'lockupCurrent', type: 'uint256' },
-      { name: 'lockupRate', type: 'uint256' },
-      { name: 'lockupLastSettledAt', type: 'uint256' },
-    ],
-    stateMutability: 'view',
-  },
-]
+import { payments } from '@filoz/synapse-core/abis'
+import { auctionInfo, auctionFunds } from '@filoz/synapse-core/auction'
+import { getChain } from '@filoz/synapse-core/chains'
 
 /**
  * @typedef {Object} Clients
@@ -75,39 +37,6 @@ export function createClient(environment, rpcUrl, privateKey) {
 }
 
 /**
- * @param {bigint} startPrice
- * @param {bigint} startTime
- * @returns {bigint}
- */
-export function calculateCurrentPrice(startPrice, startTime) {
-  const now = BigInt(Math.floor(Date.now() / 1000))
-  const elapsed = now - startTime
-
-  if (elapsed <= 0n) {
-    return startPrice
-  }
-
-  const numHalvings = elapsed / HALVING_INTERVAL
-
-  let price = startPrice
-  for (let i = 0n; i < numHalvings; i++) {
-    price = price / 2n
-    if (price === 0n) {
-      return 0n
-    }
-  }
-
-  const remainder = elapsed % HALVING_INTERVAL
-  if (remainder > 0n) {
-    const fractionDecay = (remainder * 1000000n) / HALVING_INTERVAL
-    const decayMultiplier = 1000000n - fractionDecay / 2n
-    price = (price * decayMultiplier) / 1000000n
-  }
-
-  return price
-}
-
-/**
  * @param {import('viem').PublicClient} publicClient
  * @param {string} address
  * @returns {Promise<bigint>}
@@ -120,7 +49,7 @@ export async function getBalance(publicClient, address) {
 
 /**
  * @typedef {Object} Auction
- * @property {string} token
+ * @property {`0x${string}`} token
  * @property {bigint} startPrice
  * @property {bigint} startTime
  * @property {bigint} availableFees
@@ -128,48 +57,29 @@ export async function getBalance(publicClient, address) {
 
 /**
  * @param {import('viem').PublicClient} publicClient
- * @param {string} contractAddress
  * @param {string[]} tokenAddresses
  * @returns {Promise<Auction[]>}
  */
-export async function getActiveAuctions(
-  publicClient,
-  contractAddress,
-  tokenAddresses,
-) {
+export async function getActiveAuctions(publicClient, tokenAddresses) {
   const auctions = []
 
   for (const token of tokenAddresses) {
-    const auctionInfo = await publicClient.readContract({
-      address: /** @type {`0x${string}`} */ (contractAddress),
-      abi: FILECOIN_PAY_ABI,
-      functionName: 'auctionInfo',
-      args: [token],
-    })
-
-    const [startPrice, startTime] = /** @type {[bigint, bigint]} */ (
-      auctionInfo
+    const auction = await auctionInfo(
+      /** @type {any} */ (publicClient),
+      /** @type {`0x${string}`} */ (token),
     )
 
-    if (startTime === 0n) {
+    if (auction.startTime === 0n) {
       continue
     }
 
-    const accountInfo = await publicClient.readContract({
-      address: /** @type {`0x${string}`} */ (contractAddress),
-      abi: FILECOIN_PAY_ABI,
-      functionName: 'accounts',
-      args: [token, contractAddress],
-    })
-
-    const availableFees = /** @type {[bigint, bigint, bigint, bigint]} */ (
-      accountInfo
-    )[0]
+    const availableFees = await auctionFunds(
+      /** @type {any} */ (publicClient),
+      /** @type {`0x${string}`} */ (token),
+    )
 
     auctions.push({
-      token,
-      startPrice,
-      startTime,
+      ...auction,
       availableFees,
     })
   }
@@ -186,34 +96,38 @@ export function selectFirstAvailableAuction(auctions) {
 }
 
 /**
- * @param {import('viem').WalletClient} walletClient
- * @param {import('viem').PublicClient} publicClient
- * @param {string} contractAddress
- * @param {string} tokenAddress
- * @param {string} recipient
- * @param {bigint} amount
- * @param {bigint} currentPrice
+ * @param {object} args
+ * @param {import('viem').WalletClient} args.walletClient
+ * @param {import('viem').PublicClient} args.publicClient
+ * @param {import('viem').Account} args.account
+ * @param {`0x${string}`} args.tokenAddress
+ * @param {`0x${string}`} args.recipient
+ * @param {bigint} args.amount
+ * @param {bigint} args.currentPrice
  * @returns {Promise<import('viem').TransactionReceipt>}
  */
-export async function placeBid(
+export async function placeBid({
   walletClient,
   publicClient,
-  contractAddress,
+  account,
   tokenAddress,
   recipient,
   amount,
   currentPrice,
-) {
-  // @ts-expect-error - chain is inherited from walletClient
-  const hash = await walletClient.writeContract({
-    address: /** @type {`0x${string}`} */ (contractAddress),
-    abi: FILECOIN_PAY_ABI,
+}) {
+  const chain = getChain(walletClient?.chain?.id)
+  const contractAddress = chain.contracts.payments.address
+
+  const { request } = await publicClient.simulateContract({
+    account,
+    address: contractAddress,
+    abi: payments,
     functionName: 'burnForFees',
     args: [tokenAddress, recipient, amount],
     value: currentPrice,
   })
 
+  const hash = await walletClient.writeContract(request)
   const receipt = await publicClient.waitForTransactionReceipt({ hash })
-
   return receipt
 }

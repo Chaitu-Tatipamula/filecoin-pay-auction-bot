@@ -1,10 +1,10 @@
 import { setTimeout } from 'node:timers/promises'
 import { formatEther } from 'viem'
+import { auctionPriceAt } from '@filoz/synapse-core/auction'
 import {
   createClient,
   getActiveAuctions,
   selectFirstAvailableAuction,
-  calculateCurrentPrice,
   getBalance,
   placeBid,
 } from '../index.js'
@@ -13,7 +13,6 @@ const {
   ENVIRONMENT = 'calibration',
   RPC_URL = 'https://api.calibration.node.glif.io/',
   PRIVATE_KEY,
-  CONTRACT_ADDRESS = '0x09a0fDc2723fAd1A7b8e3e00eE5DF73841df55a0',
   RECIPIENT,
   TOKEN_ADDRESSES,
   DELAY = 3_600_000,
@@ -40,7 +39,6 @@ const tokenAddresses = TOKEN_ADDRESSES.split(',').map((addr) => addr.trim())
   try {
     console.log('Initializing auction bot...')
     console.log(`RPC URL: ${RPC_URL}`)
-    console.log(`Contract: ${CONTRACT_ADDRESS}`)
     console.log(`Recipient: ${RECIPIENT}`)
     console.log(`Monitoring ${tokenAddresses.length} token(s)`)
     console.log(`Delay between bids: ${Number(DELAY)}ms\n`)
@@ -67,11 +65,7 @@ const tokenAddresses = TOKEN_ADDRESSES.split(',').map((addr) => addr.trim())
         const balance = await getBalance(publicClient, walletAddress)
         console.log(`Wallet balance: ${formatEther(balance)} FIL`)
 
-        const auctions = await getActiveAuctions(
-          publicClient,
-          CONTRACT_ADDRESS,
-          tokenAddresses,
-        )
+        const auctions = await getActiveAuctions(publicClient, tokenAddresses)
 
         console.log(`Found ${auctions.length} active auction(s)`)
 
@@ -92,22 +86,23 @@ const tokenAddresses = TOKEN_ADDRESSES.split(',').map((addr) => addr.trim())
         }
 
         const bidAmount = selectedAuction.availableFees
-        const currentPrice = calculateCurrentPrice(
-          selectedAuction.startPrice,
-          selectedAuction.startTime,
+        const block = await publicClient.getBlock()
+        const nextBlockPrice = auctionPriceAt(
+          selectedAuction,
+          block.timestamp + 30n,
         )
 
         console.log(`\nSelected auction:`)
         console.log(`  Token: ${selectedAuction.token}`)
         console.log(`  Bid amount: ${formatEther(bidAmount)} tokens`)
-        console.log(`  Current price: ${formatEther(currentPrice)} FIL`)
+        console.log(`  Next block price: ${formatEther(nextBlockPrice)} FIL`)
         console.log(
           `  Start price: ${formatEther(selectedAuction.startPrice)} FIL`,
         )
 
-        if (balance < currentPrice) {
+        if (balance < nextBlockPrice) {
           console.log(
-            `\nInsufficient balance. Need ${formatEther(currentPrice)} FIL but only have ${formatEther(balance)} FIL`,
+            `\nInsufficient balance. Need ${formatEther(nextBlockPrice)} FIL but only have ${formatEther(balance)} FIL`,
           )
           console.log('Waiting for next check...\n')
           await setTimeout(Number(DELAY))
@@ -116,15 +111,15 @@ const tokenAddresses = TOKEN_ADDRESSES.split(',').map((addr) => addr.trim())
 
         console.log('\nPlacing bid...')
 
-        const receipt = await placeBid(
+        const receipt = await placeBid({
           walletClient,
           publicClient,
-          CONTRACT_ADDRESS,
-          selectedAuction.token,
-          RECIPIENT,
-          bidAmount,
-          currentPrice,
-        )
+          account,
+          tokenAddress: selectedAuction.token,
+          amount: bidAmount,
+          recipient: /** @type {`0x${string}`} */ (RECIPIENT),
+          price: nextBlockPrice,
+        })
 
         console.log(`\nBid successful!`)
         console.log(`  Transaction hash: ${receipt.transactionHash}`)

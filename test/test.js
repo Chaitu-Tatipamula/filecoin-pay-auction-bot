@@ -1,60 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import { calculateCurrentPrice, selectFirstAvailableAuction } from '../index.js'
-
-describe('calculateCurrentPrice', () => {
-  it('returns startPrice when elapsed time is 0', () => {
-    const startPrice = 1000000000000000000n
-    const now = BigInt(Math.floor(Date.now() / 1000))
-    const startTime = now
-
-    const price = calculateCurrentPrice(startPrice, startTime)
-
-    assert.strictEqual(price, startPrice)
-  })
-
-  it('returns approximately half of startPrice after 3.5 days', () => {
-    const startPrice = 1000000000000000000n
-    const now = BigInt(Math.floor(Date.now() / 1000))
-    const startTime = now - 302400n
-
-    const price = calculateCurrentPrice(startPrice, startTime)
-
-    const expectedPrice = startPrice / 2n
-    const tolerance = startPrice / 100n
-
-    assert.ok(
-      price >= expectedPrice - tolerance && price <= expectedPrice + tolerance,
-      `Price ${price} should be approximately ${expectedPrice}`,
-    )
-  })
-
-  it('returns approximately quarter of startPrice after 7 days', () => {
-    const startPrice = 1000000000000000000n
-    const now = BigInt(Math.floor(Date.now() / 1000))
-    const startTime = now - 604800n
-
-    const price = calculateCurrentPrice(startPrice, startTime)
-
-    const expectedPrice = startPrice / 4n
-    const tolerance = startPrice / 50n
-
-    assert.ok(
-      price >= expectedPrice - tolerance && price <= expectedPrice + tolerance,
-      `Price ${price} should be approximately ${expectedPrice}`,
-    )
-  })
-
-  it('returns startPrice when startTime is in the future', () => {
-    const startPrice = 1000000000000000000n
-    const now = BigInt(Math.floor(Date.now() / 1000))
-    const startTime = now + 3600n
-
-    const price = calculateCurrentPrice(startPrice, startTime)
-
-    assert.strictEqual(price, startPrice)
-  })
-})
+import { selectFirstAvailableAuction } from '../index.js'
 
 describe('selectFirstAvailableAuction', () => {
   it('returns null for empty auctions array', () => {
