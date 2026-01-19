@@ -15,7 +15,7 @@ const {
   PRIVATE_KEY,
   RECIPIENT,
   TOKEN_ADDRESSES,
-  DELAY = 3_600_000,
+  DELAY = 600_000,
 } = process.env
 
 if (!PRIVATE_KEY) {
