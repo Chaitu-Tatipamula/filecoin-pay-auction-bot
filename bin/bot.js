@@ -88,25 +88,22 @@ try {
       }
 
       const bidAmount = selectedAuction.availableFees
-      const block = await publicClient.getBlock()
-      const nextBlockPrice = auctionPriceAt(
-        selectedAuction,
-        block.timestamp + 30n,
-      )
+      const now = BigInt(Math.floor(Date.now() / 1000))
+      const price = auctionPriceAt(selectedAuction, now)
 
       console.log()
       console.log(`Selected auction:`)
       console.log(`  Token: ${selectedAuction.token}`)
       console.log(`  Bid amount: ${formatEther(bidAmount)} tokens`)
-      console.log(`  Next block price: ${formatEther(nextBlockPrice)} FIL`)
+      console.log(`  Price: ${formatEther(price)} FIL`)
       console.log(
         `  Start price: ${formatEther(selectedAuction.startPrice)} FIL`,
       )
 
-      if (balance < nextBlockPrice) {
+      if (balance < price) {
         console.log()
         console.log(
-          `Insufficient balance. Need ${formatEther(nextBlockPrice)} FIL but only have ${formatEther(balance)} FIL`,
+          `Insufficient balance. Need ${formatEther(price)} FIL but only have ${formatEther(balance)} FIL`,
         )
         continue
       }
@@ -118,10 +115,10 @@ try {
         walletClient,
         publicClient,
         account,
+        price,
         tokenAddress: selectedAuction.token,
         amount: bidAmount,
         recipient: /** @type {`0x${string}`} */ (RECIPIENT),
-        price: nextBlockPrice,
       })
 
       console.log()
