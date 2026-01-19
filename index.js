@@ -103,7 +103,7 @@ export function selectFirstAvailableAuction(auctions) {
  * @param {`0x${string}`} args.tokenAddress
  * @param {`0x${string}`} args.recipient
  * @param {bigint} args.amount
- * @param {bigint} args.currentPrice
+ * @param {bigint} args.price
  * @returns {Promise<import('viem').TransactionReceipt>}
  */
 export async function placeBid({
@@ -113,7 +113,7 @@ export async function placeBid({
   tokenAddress,
   recipient,
   amount,
-  currentPrice,
+  price,
 }) {
   const chain = getChain(walletClient?.chain?.id)
   const contractAddress = chain.contracts.payments.address
@@ -124,10 +124,11 @@ export async function placeBid({
     abi: payments,
     functionName: 'burnForFees',
     args: [tokenAddress, recipient, amount],
-    value: currentPrice,
+    value: price,
   })
 
   const hash = await walletClient.writeContract(request)
   const receipt = await publicClient.waitForTransactionReceipt({ hash })
+
   return receipt
 }

@@ -16,6 +16,7 @@ npm run test:unit       # Run only unit tests
 
 - **Node.js with ES modules** - No compilation step
 - **Viem** - Blockchain interactions
+- **@filoz/synapse-core** - FilecoinPay SDK for contract interactions
 - **JSDoc + TypeScript** - Type annotations in comments, TypeScript only for type checking
 - **Node.js native test runner** - Uses `node:test` module
 
@@ -50,7 +51,8 @@ npm run test:unit       # Run only unit tests
 ### Testing
 
 - **Test full objects/arrays** - Use `assert.deepStrictEqual(value, expected)` instead of testing individual properties
-- **Focus on pure functions** - Price calculations, auction selection, parsing
+- **Focus on business logic** - Test auction selection and parsing functions
+- **SDK functions not tested** - Price calculations and contract queries are handled by `@filoz/synapse-core`
 
 ### Before Committing
 
@@ -60,18 +62,27 @@ npm run test:unit       # Run only unit tests
 
 ## Implementation Notes
 
-### Price Decay Calculation
+### SDK Integration
 
-The exponential decay formula (`price = startPrice / 2^(elapsed / 3.5days)`) is implemented using:
+The bot uses `@filoz/synapse-core` SDK for all FilecoinPay contract interactions:
 
-- Integer division for full halving periods
-- Linear interpolation for fractional periods using fixed-point math (multiply by 1000000)
+- **ABI**: Imported from `@filoz/synapse-core/abis` (payments)
+- **Auction queries**: Uses `auctionInfo()` and `auctionFunds()` from `@filoz/synapse-core/auction`
+- **Price calculation**: Uses `auctionPriceAt()` with next block timestamp (`block.timestamp + 30n`)
+- **Contract addresses**: Resolved via `getChain()` from `@filoz/synapse-core/chains`
+
+The SDK implements the exponential decay formula: `price = startPrice / 2^(elapsed / 3.5days)`
+
+- Price halves every 3.5 days (HALVING_SECONDS constant)
+- Bot uses next block timestamp for accurate pricing
+- Uses `auctionPriceAt(auction, block.timestamp + 30n)` for 30s block time
 
 ### Contract Interaction
 
-- Contract does NOT emit events - must poll `auctionInfo` mapping
-- Available fees are stored in `accounts[token][contractAddress]`
+- Contract does NOT emit events - must poll using SDK's `auctionInfo()`
+- Available fees queried via SDK's `auctionFunds()`
 - Bot bids directly via `burnForFees(token, recipient, amount)` with FIL as msg.value
+- Uses `simulateContract()` before `writeContract()` for safety
 
 ### Environment Support
 
