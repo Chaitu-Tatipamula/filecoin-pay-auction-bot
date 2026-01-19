@@ -67,13 +67,13 @@ const tokenAddresses = TOKEN_ADDRESSES.split(',').map((addr) => addr.trim())
 
         const auctions = await getActiveAuctions(publicClient, tokenAddresses)
 
-        console.log(`Found ${auctions.length} active auction(s)`)
-
         if (auctions.length === 0) {
           console.log('No active auctions found. Waiting for next check...\n')
           await setTimeout(Number(DELAY))
           continue
         }
+        
+        console.log(`Found ${auctions.length} active auction(s)`)
 
         const selectedAuction = selectFirstAvailableAuction(auctions)
 
