@@ -90,3 +90,17 @@ The `createClient` function supports both networks:
 
 - `ENVIRONMENT=calibration` (default) - Uses filecoin calibration (testnet)
 - `ENVIRONMENT=mainnet` - Uses filecoin mainnet
+
+### Uniswap Integration
+
+The bot uses Uniswap V3 QuoterV2 for price checking:
+
+- **QuoterV2 address**: `0xE45C06922228A33fFf1ED54638A0db78f69F9780`
+- **Quote pair**: WFIL → USDFC (pool has WFIL as token0, USDFC as token1)
+- **Quote network**: Always queries mainnet for accurate pricing
+- **Quote function**: `quoteExactInputSingle` with 1 WFIL (1e18 wei) for price discovery
+- **Fee tier**: Default 500 (0.05%), configurable via `UNISWAP_FEE_TIER`
+- **Price calculation**: Market price per USDFC = input WFIL / output USDFC
+- **Profitability logic**: Bot bids only if market price >= auction price
+- **Error handling**: Quote failures skip auction and log warning, continue monitoring
+- **Implementation**: Uses Viem's `simulateContract` for QuoterV2 calls (quoter functions revert with results)

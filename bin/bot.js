@@ -1,20 +1,35 @@
 import { setTimeout } from 'node:timers/promises'
-import { formatEther } from 'viem'
+import { createPublicClient, formatEther, http } from 'viem'
 import { auctionPriceAt } from '@filoz/synapse-core/auction'
 import {
   createClient,
-  getActiveAuctions,
-  selectFirstAvailableAuction,
+  getActiveAuction,
   getBalance,
   placeBid,
+  getUniswapQuote,
 } from '../index.js'
+import { filecoin } from 'viem/chains'
+
+const USDFC_ADDRESS = {
+  calibration: '0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0',
+  mainnet: '0x80B98d3aa09ffff255c3ba4A241111Ff1262F045',
+}
+
+const WFIL_ADDRESS = {
+  calibration: '0xaC26a4Ab9cF2A8c5DBaB6fb4351ec0F4b07356c4',
+  mainnet: '0x60e1773636cf5e4a227d9ac24f20feca034ee25a',
+}
+
+const MAINNET_RPC_URL = 'https://api.node.glif.io/'
+
+const QUOTER_ADDRESS_MAINNET = '0xE45C06922228A33fFf1ED54638A0db78f69F9780'
 
 const {
   ENVIRONMENT = 'calibration',
   RPC_URL = 'https://api.calibration.node.glif.io/',
   PRIVATE_KEY,
   RECIPIENT,
-  TOKEN_ADDRESSES,
+  UNISWAP_FEE_TIER = '500',
   DELAY = 600_000,
 } = process.env
 
@@ -28,18 +43,28 @@ if (!RECIPIENT) {
   process.exit(1)
 }
 
-if (!TOKEN_ADDRESSES) {
-  console.error('Error: TOKEN_ADDRESSES environment variable is required')
-  process.exit(1)
-}
+const usdfcAddress = /** @type {`0x${string}`} */ (
+  USDFC_ADDRESS[/** @type {'calibration' | 'mainnet'} */ (ENVIRONMENT)]
+)
+const wfilAddress = /** @type {`0x${string}`} */ (
+  WFIL_ADDRESS[/** @type {'calibration' | 'mainnet'} */ (ENVIRONMENT)]
+)
 
-const tokenAddresses = TOKEN_ADDRESSES.split(',').map((addr) => addr.trim())
+const feeTier = Number(UNISWAP_FEE_TIER)
+
+const mainnetPublicClient = createPublicClient({
+  chain: filecoin,
+  transport: http(MAINNET_RPC_URL),
+})
 
 try {
   console.log('Initializing auction bot...')
   console.log(`RPC URL: ${RPC_URL}`)
+  console.log(`Environment: ${ENVIRONMENT}`)
   console.log(`Recipient: ${RECIPIENT}`)
-  console.log(`Monitoring ${tokenAddresses.length} token(s)`)
+  console.log(`Monitoring token: USDFC at ${usdfcAddress}`)
+  console.log(`Quote pair: WFIL → USDFC at ${wfilAddress}`)
+  console.log(`Uniswap fee tier: ${feeTier / 10000}%`)
   console.log(`Delay between bids: ${Number(DELAY)}ms`)
   console.log()
 
@@ -71,39 +96,68 @@ try {
       const balance = await getBalance(publicClient, walletAddress)
       console.log(`Wallet balance: ${formatEther(balance)} FIL`)
 
-      const auctions = await getActiveAuctions(publicClient, tokenAddresses)
+      const auction = await getActiveAuction(publicClient, usdfcAddress)
 
-      if (auctions.length === 0) {
-        console.log('No active auctions found.')
+      if (!auction) {
+        console.log('No active auction found for USDFC.')
         continue
       }
 
-      console.log(`Found ${auctions.length} active auction(s)`)
-
-      const selectedAuction = selectFirstAvailableAuction(auctions)
-
-      if (!selectedAuction) {
-        console.log('No auctions with available fees.')
+      if (auction.availableFees === 0n) {
+        console.log('No available fees in USDFC auction.')
         continue
       }
 
-      const bidAmount = selectedAuction.availableFees
-      const now = BigInt(Math.floor(Date.now() / 1000))
-      const price = auctionPriceAt(selectedAuction, now)
-
-      console.log()
-      console.log(`Selected auction:`)
-      console.log(`  Token: ${selectedAuction.token}`)
-      console.log(`  Bid amount: ${formatEther(bidAmount)} tokens`)
-      console.log(`  Price: ${formatEther(price)} FIL`)
       console.log(
-        `  Start price: ${formatEther(selectedAuction.startPrice)} FIL`,
+        `Found active USDFC auction with ${formatEther(auction.availableFees)} tokens available`,
       )
 
-      if (balance < price) {
+      const bidAmount = auction.availableFees
+      const now = BigInt(Math.floor(Date.now() / 1000))
+      const totalAuctionPrice = auctionPriceAt(auction, now)
+
+      console.log()
+      console.log('Getting Uniswap quote...')
+
+      let marketQuote
+      try {
+        marketQuote = await getUniswapQuote(
+          mainnetPublicClient,
+          QUOTER_ADDRESS_MAINNET,
+          /** @type {`0x${string}`} */(USDFC_ADDRESS.mainnet),
+          /** @type {`0x${string}`} */(WFIL_ADDRESS.mainnet),
+          auction.availableFees,
+          feeTier,
+        )
+      } catch (error) {
+        const err = /** @type {Error} */ (error)
+        console.log(`Failed to get Uniswap quote: ${err.message}`)
+        console.log('Skipping auction due to quote failure.')
+        continue
+      }
+
+      console.log()
+      console.log('Price comparison:')
+      console.log(` Total auction price: ${formatEther(totalAuctionPrice)} FIL`)
+      console.log(
+        ` Market quote for auction: ${formatEther(marketQuote.amountOut)} FIL`,
+      )
+      console.log(`  Quote input: ${formatEther(auction.availableFees)} USDFC`)
+      console.log(`  Quote output: ${formatEther(marketQuote.amountOut)} WFIL`)
+
+      if (totalAuctionPrice > marketQuote.amountOut) {
+        console.log()
+        console.log('Auction not profitable. Market price below auction price.')
+        continue
+      }
+
+      console.log()
+      console.log('Auction is profitable! Checking balance...')
+
+      if (balance < totalAuctionPrice) {
         console.log()
         console.log(
-          `Insufficient balance. Need ${formatEther(price)} FIL but only have ${formatEther(balance)} FIL`,
+          `Insufficient balance. Need ${formatEther(totalAuctionPrice)} FIL but only have ${formatEther(balance)} FIL`,
         )
         continue
       }
@@ -115,8 +169,8 @@ try {
         walletClient,
         publicClient,
         account,
-        price,
-        tokenAddress: selectedAuction.token,
+        price: totalAuctionPrice,
+        tokenAddress: auction.token,
         amount: bidAmount,
         recipient: /** @type {`0x${string}`} */ (RECIPIENT),
       })

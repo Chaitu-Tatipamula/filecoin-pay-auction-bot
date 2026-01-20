@@ -1,9 +1,10 @@
-import { createPublicClient, createWalletClient, http } from 'viem'
+import { createPublicClient, createWalletClient, http,  encodeFunctionData, decodeFunctionResult  } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { filecoinCalibration, filecoin } from 'viem/chains'
-import { payments } from '@filoz/synapse-core/abis'
 import { auctionInfo, auctionFunds } from '@filoz/synapse-core/auction'
 import { getChain } from '@filoz/synapse-core/chains'
+import paymentsAbi from './abi/FilecoinPayV1.abi.json' with { type: 'json' }
+import quoterAbi from './abi/QuoterV2.abi.json' with { type: 'json' }
 
 /**
  * @typedef {Object} Clients
@@ -57,42 +58,28 @@ export async function getBalance(publicClient, address) {
 
 /**
  * @param {import('viem').PublicClient} publicClient
- * @param {string[]} tokenAddresses
- * @returns {Promise<Auction[]>}
+ * @param {string} tokenAddress
+ * @returns {Promise<Auction | null>}
  */
-export async function getActiveAuctions(publicClient, tokenAddresses) {
-  const auctions = []
+export async function getActiveAuction(publicClient, tokenAddress) {
+  const auction = await auctionInfo(
+    /** @type {any} */ (publicClient),
+    /** @type {`0x${string}`} */ (tokenAddress),
+  )
 
-  for (const token of tokenAddresses) {
-    const auction = await auctionInfo(
-      /** @type {any} */ (publicClient),
-      /** @type {`0x${string}`} */ (token),
-    )
-
-    if (auction.startTime === 0n) {
-      continue
-    }
-
-    const availableFees = await auctionFunds(
-      /** @type {any} */ (publicClient),
-      /** @type {`0x${string}`} */ (token),
-    )
-
-    auctions.push({
-      ...auction,
-      availableFees,
-    })
+  if (auction.startTime === 0n) {
+    return null
   }
 
-  return auctions
-}
+  const availableFees = await auctionFunds(
+    /** @type {any} */ (publicClient),
+    /** @type {`0x${string}`} */ (tokenAddress),
+  )
 
-/**
- * @param {Auction[]} auctions
- * @returns {Auction | null}
- */
-export function selectFirstAvailableAuction(auctions) {
-  return auctions.find((auction) => auction.availableFees > 0n) || null
+  return {
+    ...auction,
+    availableFees,
+  }
 }
 
 /**
@@ -121,7 +108,7 @@ export async function placeBid({
   const { request } = await publicClient.simulateContract({
     account,
     address: contractAddress,
-    abi: payments,
+    abi: paymentsAbi,
     functionName: 'burnForFees',
     args: [tokenAddress, recipient, amount],
     value: price,
@@ -131,4 +118,63 @@ export async function placeBid({
   const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
   return receipt
+}
+
+
+
+/**
+ * @typedef {Object} QuoteResult
+ * @property {bigint} amountOut
+ * @property {bigint} sqrtPriceX96After
+ * @property {number} initializedTicksCrossed
+ * @property {bigint} gasEstimate
+ */
+
+/**
+ * Get Uniswap V3 quote for token swap
+ *
+ * @param {import('viem').PublicClient} publicClient
+ * @param {`0x${string}`} quoterAddress
+ * @param {`0x${string}`} tokenIn
+ * @param {`0x${string}`} tokenOut
+ * @param {bigint} amountIn
+ * @param {number} fee
+ * @returns {Promise<QuoteResult>}
+ */
+export async function getUniswapQuote(
+  publicClient,
+  quoterAddress,
+  tokenIn,
+  tokenOut,
+  amountIn,
+  fee,
+) {
+  const { data } = await publicClient.call({
+    to: quoterAddress,
+    data: encodeFunctionData({
+      abi: quoterAbi,
+      functionName: 'quoteExactInputSingle',
+      args: [{ tokenIn, tokenOut, fee, amountIn, sqrtPriceLimitX96: 0n }],
+    }),
+  })
+
+  if (!data) {
+    throw new Error('No data returned from quote')
+  }
+
+  const result = decodeFunctionResult({
+    abi: quoterAbi,
+    functionName: 'quoteExactInputSingle',
+    data,
+  })
+
+  const [amountOut, sqrtPriceX96After, initializedTicksCrossed, gasEstimate] =
+    /** @type {[bigint, bigint, number, bigint]} */ (result)
+
+  return {
+    amountOut,
+    sqrtPriceX96After,
+    initializedTicksCrossed,
+    gasEstimate,
+  }
 }
