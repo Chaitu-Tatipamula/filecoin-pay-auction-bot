@@ -30,13 +30,11 @@ Create a `.env` file or set environment variables:
 ### Required Variables
 
 - `PRIVATE_KEY` - Wallet private key (with 0x prefix)
-- `RECIPIENT` - Address to receive withdrawn tokens
 - `TOKEN_ADDRESSES` - Comma-separated ERC20 token addresses to monitor
 
 ### Optional Variables
 
-- `ENVIRONMENT` - Network environment: `calibration` (default) or `mainnet`
-- `RPC_URL` - RPC endpoint (default: `https://api.calibration.node.glif.io/`)
+- `RPC_URL` - RPC endpoint (default: `https://api.calibration.node.glif.io/`). Chain is determined from the RPC.
 - `DELAY` - Milliseconds between auction checks (default: `600000` = 10 minutes)
 
 **Note:** Contract addresses are determined automatically by the SDK based on the chain ID. No manual contract address configuration is needed.
@@ -44,9 +42,8 @@ Create a `.env` file or set environment variables:
 ### Example .env file
 
 ```bash
-ENVIRONMENT=calibration
+RPC_URL=https://api.calibration.node.glif.io/
 PRIVATE_KEY=0x1234567890abcdef...
-RECIPIENT=0xYourRecipientAddress
 TOKEN_ADDRESSES=0xToken1Address,0xToken2Address
 DELAY=600000
 ```

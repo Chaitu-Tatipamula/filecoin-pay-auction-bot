@@ -1,4 +1,9 @@
-import { createPublicClient, createWalletClient, http } from 'viem'
+import {
+  createPublicClient,
+  createWalletClient,
+  extractChain,
+  http,
+} from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { filecoinCalibration, filecoin } from 'viem/chains'
 import { payments } from '@filoz/synapse-core/abis'
@@ -13,13 +18,16 @@ import { getChain } from '@filoz/synapse-core/chains'
  */
 
 /**
- * @param {string} environment
  * @param {string} rpcUrl
  * @param {string} privateKey
- * @returns {Clients}
+ * @returns {Promise<Clients>}
  */
-export function createClient(environment, rpcUrl, privateKey) {
-  const chain = environment === 'mainnet' ? filecoin : filecoinCalibration
+export async function createClient(rpcUrl, privateKey) {
+  const chainId = await getChainId(rpcUrl)
+  const chain = extractChain({
+    chains: [filecoin, filecoinCalibration],
+    id: chainId,
+  })
   const account = privateKeyToAccount(/** @type {`0x${string}`} */ (privateKey))
 
   const publicClient = createPublicClient({
@@ -34,6 +42,18 @@ export function createClient(environment, rpcUrl, privateKey) {
   })
 
   return { publicClient, walletClient, account }
+}
+
+/**
+ * @param {string} rpcUrl
+ * @returns {Promise<314 | 314159>}
+ */
+async function getChainId(rpcUrl) {
+  const tempClient = createPublicClient({
+    transport: http(rpcUrl),
+  })
+
+  return /** @type {314 | 314159} */ (await tempClient.getChainId())
 }
 
 /**

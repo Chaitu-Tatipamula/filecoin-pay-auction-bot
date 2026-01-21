@@ -10,21 +10,14 @@ import {
 } from '../index.js'
 
 const {
-  ENVIRONMENT = 'calibration',
   RPC_URL = 'https://api.calibration.node.glif.io/',
   PRIVATE_KEY,
-  RECIPIENT,
   TOKEN_ADDRESSES,
   DELAY = 600_000,
 } = process.env
 
 if (!PRIVATE_KEY) {
   console.error('Error: PRIVATE_KEY environment variable is required')
-  process.exit(1)
-}
-
-if (!RECIPIENT) {
-  console.error('Error: RECIPIENT environment variable is required')
   process.exit(1)
 }
 
@@ -38,13 +31,11 @@ const tokenAddresses = TOKEN_ADDRESSES.split(',').map((addr) => addr.trim())
 try {
   console.log('Initializing auction bot...')
   console.log(`RPC URL: ${RPC_URL}`)
-  console.log(`Recipient: ${RECIPIENT}`)
   console.log(`Monitoring ${tokenAddresses.length} token(s)`)
   console.log(`Delay between bids: ${Number(DELAY)}ms`)
   console.log()
 
-  const { publicClient, walletClient, account } = createClient(
-    ENVIRONMENT,
+  const { publicClient, walletClient, account } = await createClient(
     RPC_URL,
     PRIVATE_KEY,
   )
@@ -118,7 +109,7 @@ try {
         price,
         tokenAddress: selectedAuction.token,
         amount: bidAmount,
-        recipient: /** @type {`0x${string}`} */ (RECIPIENT),
+        recipient: walletAddress,
       })
 
       console.log()
