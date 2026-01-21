@@ -5,8 +5,8 @@
     "skipLibCheck": true,
     "lib": ["es2022"],
     "target": "es2022",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
+    "module": "Node16",
+    "moduleResolution": "node16",
 
     "strict": true,
     "forceConsistentCasingInFileNames": true,

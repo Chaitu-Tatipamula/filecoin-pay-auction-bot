@@ -88,16 +88,15 @@ The SDK implements the exponential decay formula: `price = startPrice / 2^(elaps
 
 The `createClient` function supports both networks: `mainnet` and `calibration`. Network is determined by passing the `RPC_URL` to `createClient`. The function will automatically detect the chain and configure the client accordingly.
 
-### Uniswap Integration
+### Sushiswap Integration
 
-The bot uses Uniswap V3 QuoterV2 for price checking:
+The bot uses Sushiswap's REST API for price checking:
 
-- **QuoterV2 address**: `0xE45C06922228A33fFf1ED54638A0db78f69F9780`
-- **Quote pair**: WFIL → USDFC (pool has WFIL as token0, USDFC as token1)
-- **Quote network**: Always queries mainnet for accurate pricing
-- **Quote function**: `quoteExactInputSingle` with 1 WFIL (1e18 wei) for price discovery
-- **Fee tier**: Default 500 (0.05%), configurable via `UNISWAP_FEE_TIER`
-- **Price calculation**: Market price per USDFC = input WFIL / output USDFC
+- **API endpoint**: `https://api.sushi.com/quote/v7/{chainId}`
+- **Quote pair**: USDFC → WFIL
+- **Quote network**: Always queries mainnet (chain ID 314) for accurate pricing
+- **Quote function**: REST API with `tokenIn`, `tokenOut`, `amount`, `maxSlippage`
+- **Max slippage**: Default 0.005 (0.5%)
 - **Profitability logic**: Bot bids only if market price >= auction price
 - **Error handling**: Quote failures skip auction and log warning, continue monitoring
-- **Implementation**: Uses Viem's `simulateContract` for QuoterV2 calls (quoter functions revert with results)
+- **Implementation**: Uses native `fetch` for HTTP calls

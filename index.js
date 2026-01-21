@@ -8,8 +8,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { filecoinCalibration, filecoin } from 'viem/chains'
 import { auctionInfo, auctionFunds } from '@filoz/synapse-core/auction'
 import { getChain } from '@filoz/synapse-core/chains'
-import paymentsAbi from './abi/FilecoinPayV1.abi.json' with { type: 'json' }
-import quoterAbi from './abi/QuoterV2.abi.json' with { type: 'json' }
+import { payments } from '@filoz/synapse-core/abis'
 
 /**
  * @typedef {Object} Clients
@@ -19,12 +18,12 @@ import quoterAbi from './abi/QuoterV2.abi.json' with { type: 'json' }
  */
 
 /**
+ * @param {314 | 314159} chainId
  * @param {string} rpcUrl
  * @param {string} privateKey
  * @returns {Promise<Clients>}
  */
-export async function createClient(rpcUrl, privateKey) {
-  const chainId = await getChainId(rpcUrl)
+export async function createClient(chainId, rpcUrl, privateKey) {
   const chain = extractChain({
     chains: [filecoin, filecoinCalibration],
     id: chainId,
@@ -49,7 +48,7 @@ export async function createClient(rpcUrl, privateKey) {
  * @param {string} rpcUrl
  * @returns {Promise<314 | 314159>}
  */
-async function getChainId(rpcUrl) {
+export async function getChainId(rpcUrl) {
   const tempClient = createPublicClient({
     transport: http(rpcUrl),
   })
@@ -128,7 +127,7 @@ export async function placeBid({
   const { request } = await publicClient.simulateContract({
     account,
     address: contractAddress,
-    abi: paymentsAbi,
+    abi: payments,
     functionName: 'burnForFees',
     args: [tokenAddress, recipient, amount],
     value: price,
@@ -140,61 +139,17 @@ export async function placeBid({
   return receipt
 }
 
-
-
 /**
- * @typedef {Object} QuoteResult
- * @property {bigint} amountOut
- * @property {bigint} sqrtPriceX96After
- * @property {number} initializedTicksCrossed
- * @property {bigint} gasEstimate
+ * @param {number} chainId
+ * @returns {`0x${string}`}
  */
-
-/**
- * Get Uniswap V3 quote for token swap
- *
- * @param {import('viem').PublicClient} publicClient
- * @param {`0x${string}`} quoterAddress
- * @param {`0x${string}`} tokenIn
- * @param {`0x${string}`} tokenOut
- * @param {bigint} amountIn
- * @param {number} fee
- * @returns {Promise<QuoteResult>}
- */
-export async function getUniswapQuote(
-  publicClient,
-  quoterAddress,
-  tokenIn,
-  tokenOut,
-  amountIn,
-  fee,
-) {
-  const { data } = await publicClient.call({
-    to: quoterAddress,
-    data: encodeFunctionData({
-      abi: quoterAbi,
-      functionName: 'quoteExactInputSingle',
-      args: [{ tokenIn, tokenOut, fee, amountIn, sqrtPriceLimitX96: 0n }],
-    }),
-  })
-
-  if (!data) {
-    throw new Error('No data returned from quote')
-  }
-
-  const result = decodeFunctionResult({
-    abi: quoterAbi,
-    functionName: 'quoteExactInputSingle',
-    data,
-  })
-
-  const [amountOut, sqrtPriceX96After, initializedTicksCrossed, gasEstimate] =
-    /** @type {[bigint, bigint, number, bigint]} */ (result)
-
-  return {
-    amountOut,
-    sqrtPriceX96After,
-    initializedTicksCrossed,
-    gasEstimate,
+export function getUsdfcAddress(chainId) {
+  switch (chainId) {
+    case 314:
+      return '0x80B98d3aa09ffff255c3ba4A241111Ff1262F045' // mainnet
+    case 314159:
+      return '0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0' // calibration
+    default:
+      throw new Error(`Unsupported chain ID: ${chainId}`)
   }
 }
