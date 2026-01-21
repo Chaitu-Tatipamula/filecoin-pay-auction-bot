@@ -77,28 +77,28 @@ async function initialize() {
  * @param {object} config
  * @param {import('viem').PublicClient} config.publicClient - Viem public client
  *   for blockchain queries
- * @param {`0x${string}`} config.usdfcAddress - USDFC token contract address
+ * @param {`0x${string}`} config.tokenAddress - Token contract address
  * @returns {Promise<{
  *   auction: any
  *   bidAmount: bigint
  *   totalAuctionPrice: bigint
  * } | null>}
  */
-async function getAuction({ publicClient, usdfcAddress }) {
-  const auction = await getActiveAuction(publicClient, usdfcAddress)
+async function getAuction({ publicClient, tokenAddress }) {
+  const auction = await getActiveAuction(publicClient, tokenAddress)
 
   if (!auction) {
-    console.log('No active auction found for USDFC.')
+    console.log(`No active auction found for ${tokenAddress}.`)
     return null
   }
 
   if (auction.availableFees === 0n) {
-    console.log('No available fees in USDFC auction.')
+    console.log(`No available fees in auction for ${tokenAddress}.`)
     return null
   }
 
   console.log(
-    `Found active USDFC auction with ${formatEther(auction.availableFees)} tokens available`,
+    `Found active auction for token ${tokenAddress} with ${formatEther(auction.availableFees)} tokens available`,
   )
 
   const bidAmount = auction.availableFees
@@ -132,7 +132,7 @@ async function isAuctionProfitable(
     mainnetMarketQuote = await getQuote({
       chainId: ChainId.FILECOIN,
       tokenIn,
-      tokenOut: FIL_ADDRESS,
+      tokenOut,
       amount: availableFees,
       maxSlippage: 0.005,
     })
@@ -231,7 +231,10 @@ async function processAuctions({
   const balance = await getBalance(publicClient, walletAddress)
   console.log(`Wallet balance: ${formatEther(balance)} FIL`)
 
-  const usdfcAuctionData = await getAuction({ publicClient, usdfcAddress })
+  const usdfcAuctionData = await getAuction({
+    publicClient,
+    tokenAddress: usdfcAddress,
+  })
   if (!usdfcAuctionData) return
 
   const { auction, bidAmount, totalAuctionPrice } = usdfcAuctionData

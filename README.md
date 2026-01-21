@@ -9,8 +9,8 @@ This bot monitors ERC20 token auctions on the [Filecoin Pay](https://github.com/
 ## Features
 
 - Monitors USDFC token auction
-- Uniswap V3 price checking for profitable bidding
-- Only bids when market price >= auction price
+- Sushiswap price checking for profitable bidding
+- Only bids when market price > auction price
 - Periodically places bids directly from wallet based on configurable intervals
 
 ## Requirements
@@ -32,7 +32,6 @@ Create a `.env` file or set environment variables:
 ### Required Variables
 
 - `PRIVATE_KEY` - Wallet private key (with 0x prefix)
-- `TOKEN_ADDRESSES` - Comma-separated ERC20 token addresses to monitor
 
 ### Optional Variables
 
@@ -45,13 +44,12 @@ The bot monitors **USDFC** token only:
 
 **USDFC**:
 
-- Calibration: `0x80B98d3aa09ffff255c3ba4A241111Ff1262F045`
-- Mainnet: (To be added)
+- Calibration: `0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0`
+- Mainnet: `0x80B98d3aa09ffff255c3ba4A241111Ff1262F045`
 
-**WFIL** (for Uniswap quotes):
+**FIL** (Sushiswap quotes):
 
-- Calibration: `0xaC26a4Ab9cF2A8c5DBaB6fb4351ec0F4b07356c4`
-- Mainnet: `0x60E1773636CF5E4A227d9AC24F20fEca034ee25A`
+- Calibration & Mainnet: `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`
 
 **Note:** Contract addresses are determined automatically by the SDK based on the chain ID. No manual contract address configuration is needed.
 
@@ -60,7 +58,6 @@ The bot monitors **USDFC** token only:
 ```bash
 RPC_URL=https://api.calibration.node.glif.io/
 PRIVATE_KEY=0x1234567890abcdef...
-TOKEN_ADDRESSES=0xToken1Address,0xToken2Address
 DELAY=600000
 ```
 
@@ -120,11 +117,10 @@ Filecoin Pay uses dutch auctions where:
 2. Skip if no active auction (startTime = 0) or no available fees
 3. Query available fees using SDK's `auctionFunds()`
 4. Calculate auction price per token using SDK's `auctionPriceAt()` with current timestamp
-5. **Get Uniswap V3 quote** for 1 WFIL → USDFC on mainnet using QuoterV2 contract
-6. **Calculate market price per token** from the quote (price = input WFIL / output USDFC)
-7. **Compare profitability**: Only proceed if market price >= auction price
-8. Verify wallet has sufficient FIL balance
-9. Place bid via `burnForFees(token, recipient, amount)` function
+5. **Get Sushiswap quote** for available fees in the auction.
+6. **Compare profitability**: Only proceed if market price > auction price
+7. Verify wallet has sufficient FIL balance
+8. Place bid via `burnForFees(token, recipient, amount)` function
 
 ### SDK Integration
 
@@ -140,16 +136,13 @@ FilecoinPay contract addresses used by SDK:
 - Calibration (chain ID 314159): `0x09a0fDc2723fAd1A7b8e3e00eE5DF73841df55a0`
 - Mainnet (chain ID 314): `0x23b1e018F08BB982348b15a86ee926eEBbf7F4DAa`
 
-### Uniswap V3 Integration
+### Sushiswap Integration
 
-The bot uses Uniswap V3's QuoterV2 contract to check market prices before bidding:
+The bot uses Sushiswap quote API to check market prices before bidding:
 
-- **QuoterV2 address**: `0xE45C06922228A33fFf1ED54638A0db78f69F9780`
-- **Quote pair**: WFIL → USDFC (using the 0.05% fee tier pool)
+- **Quote pair**: USDFC → FIL (using the 0.05% slippage)
 - **Quote network**: Always queries mainnet for accurate pricing (even when bidding on Calibration)
-- **Quote function**: `quoteExactInputSingle` - swaps 1 WFIL to get USDFC amount
-- **Price calculation**: Market price per USDFC = 1 WFIL / output USDFC amount
-- **Profitability check**: Only bids when market price >= auction price
+- **Profitability check**: Only bids when market price > auction price
 
 This ensures the bot never overpays for tokens relative to their market value.
 
