@@ -72,7 +72,7 @@ async function initialize() {
 }
 
 /**
- * Get active auction and calculate price
+ * Get active auction for token and calculate price
  *
  * @param {object} config
  * @param {import('viem').PublicClient} config.publicClient - Viem public client
@@ -84,7 +84,7 @@ async function initialize() {
  *   totalAuctionPrice: bigint
  * } | null>}
  */
-async function getAuction({ publicClient, tokenAddress }) {
+async function getTokenAuction({ publicClient, tokenAddress }) {
   const auction = await getActiveAuction(publicClient, tokenAddress)
 
   if (!auction) {
@@ -161,50 +161,6 @@ async function isAuctionProfitable(
 }
 
 /**
- * Execute bid on auction
- *
- * @param {object} config
- * @param {import('viem').WalletClient} config.walletClient - Viem wallet client
- *   for transactions
- * @param {import('viem').PublicClient} config.publicClient - Viem public client
- *   for blockchain queries
- * @param {import('viem').Account} config.account - Wallet account for signing
- *   transactions
- * @param {`0x${string}`} config.walletAddress - Address to receive auction
- *   tokens
- * @param {any} auction - Auction data including token address
- * @param {bigint} bidAmount - Amount of tokens to bid for
- * @param {bigint} totalAuctionPrice - Price to pay in FIL
- */
-async function executeBid(
-  { walletClient, publicClient, account, walletAddress },
-  auction,
-  bidAmount,
-  totalAuctionPrice,
-) {
-  console.log('Placing bid...')
-
-  const receipt = await placeBid({
-    walletClient,
-    publicClient,
-    account,
-    price: totalAuctionPrice,
-    tokenAddress: /** @type {`0x${string}`} */ (auction.token),
-    amount: bidAmount,
-    recipient: /** @type {`0x${string}`} */ (walletAddress),
-  })
-
-  console.log()
-  console.log(`Bid successful!`)
-  console.log(`  Transaction hash: ${receipt.transactionHash}`)
-  console.log(`  Block number: ${receipt.blockNumber}`)
-  console.log(`  Gas used: ${receipt.gasUsed}`)
-  console.log(
-    `  Status: ${receipt.status === 'success' ? 'success' : 'failed'}`,
-  )
-}
-
-/**
  * Process a single auction check iteration
  *
  * @param {object} config
@@ -231,7 +187,7 @@ async function processAuctions({
   const balance = await getBalance(publicClient, walletAddress)
   console.log(`Wallet balance: ${formatEther(balance)} FIL`)
 
-  const usdfcAuctionData = await getAuction({
+  const usdfcAuctionData = await getTokenAuction({
     publicClient,
     tokenAddress: usdfcAddress,
   })
@@ -261,11 +217,25 @@ async function processAuctions({
     return
   }
 
-  await executeBid(
-    { walletClient, publicClient, account, walletAddress },
-    auction,
-    bidAmount,
-    totalAuctionPrice,
+  console.log('Placing bid...')
+
+  const receipt = await placeBid({
+    walletClient,
+    publicClient,
+    account,
+    price: totalAuctionPrice,
+    tokenAddress: /** @type {`0x${string}`} */ (auction.token),
+    amount: bidAmount,
+    recipient: /** @type {`0x${string}`} */ (walletAddress),
+  })
+
+  console.log()
+  console.log(`Bid successful!`)
+  console.log(`  Transaction hash: ${receipt.transactionHash}`)
+  console.log(`  Block number: ${receipt.blockNumber}`)
+  console.log(`  Gas used: ${receipt.gasUsed}`)
+  console.log(
+    `  Status: ${receipt.status === 'success' ? 'success' : 'failed'}`,
   )
 }
 
