@@ -25,11 +25,9 @@ const MAINNET_RPC_URL = 'https://api.node.glif.io/'
 const QUOTER_ADDRESS_MAINNET = '0xE45C06922228A33fFf1ED54638A0db78f69F9780'
 
 const {
-  ENVIRONMENT = 'calibration',
   RPC_URL = 'https://api.calibration.node.glif.io/',
   PRIVATE_KEY,
-  RECIPIENT,
-  UNISWAP_FEE_TIER = '500',
+  // UNISWAP_FEE_TIER = '500',
   DELAY = 600_000,
 } = process.env
 
@@ -38,19 +36,9 @@ if (!PRIVATE_KEY) {
   process.exit(1)
 }
 
-if (!RECIPIENT) {
-  console.error('Error: RECIPIENT environment variable is required')
-  process.exit(1)
-}
 
-const usdfcAddress = /** @type {`0x${string}`} */ (
-  USDFC_ADDRESS[/** @type {'calibration' | 'mainnet'} */ (ENVIRONMENT)]
-)
-const wfilAddress = /** @type {`0x${string}`} */ (
-  WFIL_ADDRESS[/** @type {'calibration' | 'mainnet'} */ (ENVIRONMENT)]
-)
-
-const feeTier = Number(UNISWAP_FEE_TIER)
+const usdfcAddress = ''
+const wfilAddress = ''
 
 const mainnetPublicClient = createPublicClient({
   chain: filecoin,
@@ -60,16 +48,13 @@ const mainnetPublicClient = createPublicClient({
 try {
   console.log('Initializing auction bot...')
   console.log(`RPC URL: ${RPC_URL}`)
-  console.log(`Environment: ${ENVIRONMENT}`)
-  console.log(`Recipient: ${RECIPIENT}`)
   console.log(`Monitoring token: USDFC at ${usdfcAddress}`)
   console.log(`Quote pair: WFIL → USDFC at ${wfilAddress}`)
-  console.log(`Uniswap fee tier: ${feeTier / 10000}%`)
+  // console.log(`Uniswap fee tier: ${feeTier / 10000}%`)
   console.log(`Delay between bids: ${Number(DELAY)}ms`)
   console.log()
 
-  const { publicClient, walletClient, account } = createClient(
-    ENVIRONMENT,
+  const { publicClient, walletClient, account } = await createClient(
     RPC_URL,
     PRIVATE_KEY,
   )
@@ -127,7 +112,7 @@ try {
           /** @type {`0x${string}`} */(USDFC_ADDRESS.mainnet),
           /** @type {`0x${string}`} */(WFIL_ADDRESS.mainnet),
           auction.availableFees,
-          feeTier,
+          500,
         )
       } catch (error) {
         const err = /** @type {Error} */ (error)
@@ -172,7 +157,7 @@ try {
         price: totalAuctionPrice,
         tokenAddress: auction.token,
         amount: bidAmount,
-        recipient: /** @type {`0x${string}`} */ (RECIPIENT),
+        recipient: walletAddress,
       })
 
       console.log()

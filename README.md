@@ -32,14 +32,11 @@ Create a `.env` file or set environment variables:
 ### Required Variables
 
 - `PRIVATE_KEY` - Wallet private key (with 0x prefix)
-- `RECIPIENT` - Address to receive withdrawn tokens
+- `TOKEN_ADDRESSES` - Comma-separated ERC20 token addresses to monitor
 
 ### Optional Variables
 
-- `ENVIRONMENT` - Network environment: `calibration` (default) or `mainnet`
-- `RPC_URL` - RPC endpoint (default: `https://api.calibration.node.glif.io/`)
-- `UNISWAP_FEE_TIER` - Uniswap pool fee tier in basis points (default: `500` = 0.05%)
-- `QUOTE_AMOUNT` - Amount of WFIL to quote for price discovery in wei (default: `1000000000000000000` = 1 WFIL)
+- `RPC_URL` - RPC endpoint (default: `https://api.calibration.node.glif.io/`). Chain is determined from the RPC.
 - `DELAY` - Milliseconds between auction checks (default: `600000` = 10 minutes)
 
 ### Hardcoded Token Addresses
@@ -61,10 +58,9 @@ The bot monitors **USDFC** token only:
 ### Example .env file
 
 ```bash
-ENVIRONMENT=calibration
+RPC_URL=https://api.calibration.node.glif.io/
 PRIVATE_KEY=0x1234567890abcdef...
-RECIPIENT=0xYourRecipientAddress
-UNISWAP_FEE_TIER=500
+TOKEN_ADDRESSES=0xToken1Address,0xToken2Address
 DELAY=600000
 ```
 

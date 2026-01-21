@@ -86,10 +86,7 @@ The SDK implements the exponential decay formula: `price = startPrice / 2^(elaps
 
 ### Environment Support
 
-The `createClient` function supports both networks:
-
-- `ENVIRONMENT=calibration` (default) - Uses filecoin calibration (testnet)
-- `ENVIRONMENT=mainnet` - Uses filecoin mainnet
+The `createClient` function supports both networks: `mainnet` and `calibration`. Network is determined by passing the `RPC_URL` to `createClient`. The function will automatically detect the chain and configure the client accordingly.
 
 ### Uniswap Integration
 
