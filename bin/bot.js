@@ -12,7 +12,7 @@ import {
 } from '../index.js'
 import { ChainId } from 'sushi'
 
-const FIL_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+const SUSHISWAP_NATIVE_PLACEHOLDER = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
 
 /**
  * Initialize bot configuration and clients
@@ -197,7 +197,7 @@ async function processAuctions({
 
   const isProfitable = await isAuctionProfitable(
     usdfcAddressMainnet,
-    FIL_ADDRESS,
+    SUSHISWAP_NATIVE_PLACEHOLDER,
     auction.availableFees,
     totalAuctionPrice,
   )
@@ -242,17 +242,8 @@ async function processAuctions({
 try {
   const config = await initialize()
 
-  let sleep = false
   while (true) {
-    if (sleep) {
-      console.log(`Waiting ${config.delay}ms until next check...`)
-      console.log()
-      await setTimeout(config.delay)
-    }
-    sleep = true
-
-    const timestamp = new Date().toISOString()
-    console.log(`[${timestamp}] Starting auction check...`)
+    console.log(`Starting auction check...`)
 
     try {
       await processAuctions(config)
@@ -261,6 +252,10 @@ try {
       console.log()
       console.error(`Error during auction check: ${err.message}`)
     }
+
+    console.log(`Waiting ${config.delay}ms until next check...`)
+    console.log()
+    await setTimeout(config.delay)
   }
 } catch (error) {
   const err = /** @type {Error} */ (error)
