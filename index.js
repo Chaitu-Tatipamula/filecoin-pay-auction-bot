@@ -2,13 +2,23 @@ import {
   createPublicClient,
   createWalletClient,
   extractChain,
+  formatEther,
   http,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { filecoinCalibration, filecoin } from 'viem/chains'
-import { auctionInfo, auctionFunds } from '@filoz/synapse-core/auction'
+import {
+  auctionInfo,
+  auctionFunds,
+  auctionPriceAt,
+} from '@filoz/synapse-core/auction'
 import { getChain } from '@filoz/synapse-core/chains'
 import { payments } from '@filoz/synapse-core/abis'
+import { ChainId } from 'sushi'
+import { getQuote, RouteStatus } from 'sushi/evm'
+
+export const SUSHISWAP_NATIVE_PLACEHOLDER =
+  '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
 
 /**
  * @typedef {Object} Clients
@@ -152,4 +162,229 @@ export function getUsdfcAddress(chainId) {
     default:
       throw new Error(`Unsupported chain ID: ${chainId}`)
   }
+}
+
+/**
+ * Initialize bot configuration and clients
+ *
+ * @param {NodeJS.ProcessEnv} [env] - Environment variables
+ * @returns {Promise<{
+ *   publicClient: import('viem').PublicClient
+ *   walletClient: import('viem').WalletClient
+ *   account: import('viem').Account
+ *   walletAddress: `0x${string}`
+ *   usdfcAddress: `0x${string}`
+ *   usdfcAddressMainnet: `0x${string}`
+ *   delay: number
+ * }>}
+ */
+export async function initializeConfig(env) {
+  const {
+    RPC_URL = 'https://api.calibration.node.glif.io/',
+    PRIVATE_KEY,
+    DELAY = 600000,
+  } = env ?? {}
+
+  if (!PRIVATE_KEY) {
+    console.error('Error: PRIVATE_KEY environment variable is required')
+    process.exit(1)
+  }
+
+  const chainId = await getChainId(RPC_URL)
+  const usdfcAddress = getUsdfcAddress(chainId)
+  const usdfcAddressMainnet = getUsdfcAddress(ChainId.FILECOIN)
+
+  console.log('Initializing auction bot...')
+  console.log(`RPC URL: ${RPC_URL}`)
+  console.log(`Monitoring token: USDFC at ${usdfcAddress}`)
+  console.log(`Delay between bids: ${Number(DELAY)}ms`)
+  console.log()
+
+  const { publicClient, walletClient, account } = await createClient(
+    chainId,
+    RPC_URL,
+    PRIVATE_KEY,
+  )
+  const walletAddress = account.address
+
+  console.log(`Wallet address: ${walletAddress}`)
+  console.log('Initialization complete. Starting auction monitoring...')
+  console.log()
+
+  return {
+    publicClient,
+    walletClient,
+    account,
+    walletAddress,
+    usdfcAddress,
+    usdfcAddressMainnet,
+    delay: Number(DELAY),
+  }
+}
+/**
+ * Get active auction for token and calculate price
+ *
+ * @param {object} config
+ * @param {import('viem').PublicClient} config.publicClient - Viem public client
+ *   for blockchain queries
+ * @param {`0x${string}`} config.tokenAddress - Token contract address
+ * @returns {Promise<{
+ *   auction: any
+ *   bidAmount: bigint
+ *   totalAuctionPrice: bigint
+ * } | null>}
+ */
+export async function getTokenAuction({ publicClient, tokenAddress }) {
+  const auction = await getActiveAuction(publicClient, tokenAddress)
+
+  if (!auction) {
+    console.log(`No active auction found for ${tokenAddress}.`)
+    return null
+  }
+
+  if (auction.availableFees === 0n) {
+    console.log(`No available fees in auction for ${tokenAddress}.`)
+    return null
+  }
+
+  console.log(
+    `Found active auction for token ${tokenAddress} with ${formatEther(auction.availableFees)} tokens available`,
+  )
+
+  const bidAmount = auction.availableFees
+  const now = BigInt(Math.floor(Date.now() / 1000))
+  const totalAuctionPrice = auctionPriceAt(auction, now)
+
+  return { auction, bidAmount, totalAuctionPrice }
+}
+
+/**
+ * Check if auction is profitable by comparing with market mainnet price
+ *
+ * @param {`0x${string}`} tokenIn - Token address on mainnet
+ * @param {`0x${string}`} tokenOut - Token address on mainnet
+ * @param {bigint} availableFees - Amount of USDFC tokens available in auction
+ * @param {bigint} totalAuctionPrice - Current auction price in FIL
+ * @returns {Promise<boolean>} - Returns true if auction is profitable
+ */
+export async function isAuctionProfitable(
+  tokenIn,
+  tokenOut,
+  availableFees,
+  totalAuctionPrice,
+) {
+  console.log()
+  console.log('Getting Sushiswap quote...')
+
+  /** @type {import('sushi/evm').QuoteResponse} */
+  let mainnetMarketQuote
+  try {
+    mainnetMarketQuote = await getQuote({
+      chainId: ChainId.FILECOIN,
+      tokenIn,
+      tokenOut,
+      amount: availableFees,
+      maxSlippage: 0.005,
+    })
+  } catch (error) {
+    const err = /** @type {Error} */ (error)
+    console.log(`Failed to get Sushiswap quote: ${err.message}`)
+    console.log('Skipping auction due to quote failure.')
+    return false
+  }
+
+  if (mainnetMarketQuote.status !== RouteStatus.Success) {
+    console.log(`Sushiswap quote unsuccessful: ${mainnetMarketQuote.status}`)
+    console.log('Skipping auction due to quote failure.')
+    return false
+  }
+
+  const amountOut = BigInt(mainnetMarketQuote.assumedAmountOut)
+  console.log()
+  console.log('Price comparison:')
+  console.log(` Auction price: ${formatEther(totalAuctionPrice)}`)
+  console.log(` Market price: ${formatEther(BigInt(amountOut))}`)
+  console.log(`  Quote input: ${formatEther(availableFees)}`)
+  console.log(`  Quote output: ${formatEther(amountOut)}`)
+
+  return BigInt(amountOut) > totalAuctionPrice
+}
+
+/**
+ * Process a single auction check iteration
+ *
+ * @param {object} config
+ * @param {import('viem').PublicClient} config.publicClient - Viem public client
+ *   for blockchain queries
+ * @param {import('viem').WalletClient} config.walletClient - Viem wallet client
+ *   for transactions
+ * @param {import('viem').Account} config.account - Wallet account for signing
+ *   transactions
+ * @param {`0x${string}`} config.walletAddress - Address to receive auction
+ *   tokens
+ * @param {`0x${string}`} config.usdfcAddress - USDFC token contract address
+ * @param {`0x${string}`} config.usdfcAddressMainnet - USDFC token address on
+ *   mainnet
+ */
+export async function processAuctions({
+  publicClient,
+  walletClient,
+  account,
+  walletAddress,
+  usdfcAddress,
+  usdfcAddressMainnet,
+}) {
+  const balance = await getBalance(publicClient, walletAddress)
+  console.log(`Wallet balance: ${formatEther(balance)} FIL`)
+
+  const usdfcAuctionData = await getTokenAuction({
+    publicClient,
+    tokenAddress: usdfcAddress,
+  })
+  if (!usdfcAuctionData) return
+
+  const { auction, bidAmount, totalAuctionPrice } = usdfcAuctionData
+
+  const isProfitable = await isAuctionProfitable(
+    usdfcAddressMainnet,
+    SUSHISWAP_NATIVE_PLACEHOLDER,
+    auction.availableFees,
+    totalAuctionPrice,
+  )
+  if (!isProfitable) {
+    console.log()
+    console.log('Auction not profitable. Market price below auction price.')
+    return
+  }
+
+  console.log('Checking balance...')
+  console.log()
+
+  if (balance < totalAuctionPrice) {
+    console.log(
+      `Insufficient balance. Need ${formatEther(totalAuctionPrice)} FIL but only have ${formatEther(balance)} FIL`,
+    )
+    return
+  }
+
+  console.log('Placing bid...')
+
+  const receipt = await placeBid({
+    walletClient,
+    publicClient,
+    account,
+    price: totalAuctionPrice,
+    tokenAddress: /** @type {`0x${string}`} */ (auction.token),
+    amount: bidAmount,
+    recipient: /** @type {`0x${string}`} */ (walletAddress),
+  })
+
+  console.log()
+  console.log(`Bid successful!`)
+  console.log(`  Transaction hash: ${receipt.transactionHash}`)
+  console.log(`  Block number: ${receipt.blockNumber}`)
+  console.log(`  Gas used: ${receipt.gasUsed}`)
+  console.log(
+    `  Status: ${receipt.status === 'success' ? 'success' : 'failed'}`,
+  )
 }
