@@ -7,6 +7,6 @@ spec:
   template:
     spec:
       containers:
-      - name: auction-bot
-        image: auction-bot:local
-        imagePullPolicy: Never
+        - name: auction-bot
+          image: auction-bot:local
+          imagePullPolicy: Never
