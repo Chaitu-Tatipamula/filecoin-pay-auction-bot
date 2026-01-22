@@ -250,10 +250,9 @@ export async function getTokenAuction({ publicClient, tokenAddress }) {
     `Found active auction for token ${tokenAddress} with ${formatEther(auction.availableFees)} tokens available`,
   )
 
+  const block = await publicClient.getBlock()
   const bidAmount = auction.availableFees
-  const now = BigInt(Math.floor(Date.now() / 1000))
-  const auctionPrice = auctionPriceAt(auction, now)
-
+  const auctionPrice = auctionPriceAt(auction, block.timestamp)
   return { auction, bidAmount, auctionPrice }
 }
 
@@ -344,10 +343,28 @@ export async function processAuctions({
 
   const { auction, bidAmount, auctionPrice } = usdfcAuctionData
 
+  const chain = getChain(walletClient?.chain?.id)
+  const contractAddress = chain.contracts.payments.address
+
+  let gasEstimate
+  try {
+    gasEstimate = await publicClient.estimateContractGas({
+      account,
+      address: contractAddress,
+      abi: payments,
+      functionName: 'burnForFees',
+      args: [auction.token, walletAddress, bidAmount],
+      value: auctionPrice,
+    })
+  } catch (error) {
+    const err = /** @type {Error} */ (error)
+    console.log(`Failed to estimate gas: ${err.message}`)
+    console.log('Skipping auction due to gas estimation failure.')
+    return
+  }
+
   const gasPrice = await publicClient.getGasPrice()
-  // Approximate gas estimate for auction bid transaction
-  const auctionBidGasEstimate = 120_000_000n
-  const estimatedGasCost = gasPrice * auctionBidGasEstimate
+  const estimatedGasCost = gasPrice * gasEstimate
   console.log(
     `Estimated gas cost for bid: ${formatEther(estimatedGasCost)} FIL`,
   )
