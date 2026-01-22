@@ -230,7 +230,7 @@ export async function initializeConfig(env = {}) {
  * @returns {Promise<{
  *   auction: any
  *   bidAmount: bigint
- *   totalAuctionPrice: bigint
+ *   auctionPrice: bigint
  * } | null>}
  */
 export async function getTokenAuction({ publicClient, tokenAddress }) {
@@ -252,9 +252,9 @@ export async function getTokenAuction({ publicClient, tokenAddress }) {
 
   const bidAmount = auction.availableFees
   const now = BigInt(Math.floor(Date.now() / 1000))
-  const totalAuctionPrice = auctionPriceAt(auction, now)
+  const auctionPrice = auctionPriceAt(auction, now)
 
-  return { auction, bidAmount, totalAuctionPrice }
+  return { auction, bidAmount, auctionPrice }
 }
 
 /**
@@ -342,8 +342,17 @@ export async function processAuctions({
   })
   if (!usdfcAuctionData) return
 
-  const { auction, bidAmount, totalAuctionPrice } = usdfcAuctionData
+  const { auction, bidAmount, auctionPrice } = usdfcAuctionData
 
+  const gasPrice = await publicClient.getGasPrice()
+  // Approximate gas estimate for auction bid transaction
+  const auctionBidGasEstimate = 120_000_000n
+  const estimatedGasCost = gasPrice * auctionBidGasEstimate
+  console.log(
+    `Estimated gas cost for bid: ${formatEther(estimatedGasCost)} FIL`,
+  )
+
+  const totalAuctionPrice = auctionPrice + estimatedGasCost
   const isProfitable = await isAuctionProfitable(
     usdfcAddressMainnet,
     SUSHISWAP_NATIVE_PLACEHOLDER,
@@ -359,9 +368,9 @@ export async function processAuctions({
   console.log('Checking balance...')
   console.log()
 
-  if (balance < totalAuctionPrice) {
+  if (balance < auctionPrice) {
     console.log(
-      `Insufficient balance. Need ${formatEther(totalAuctionPrice)} FIL but only have ${formatEther(balance)} FIL`,
+      `Insufficient balance. Need ${formatEther(auctionPrice)} FIL but only have ${formatEther(balance)} FIL`,
     )
     return
   }
@@ -372,7 +381,7 @@ export async function processAuctions({
     walletClient,
     publicClient,
     account,
-    price: totalAuctionPrice,
+    price: auctionPrice,
     tokenAddress: /** @type {`0x${string}`} */ (auction.token),
     amount: bidAmount,
     recipient: /** @type {`0x${string}`} */ (walletAddress),
