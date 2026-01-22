@@ -186,8 +186,7 @@ export async function initializeConfig(env = {}) {
   } = env
 
   if (!PRIVATE_KEY) {
-    console.error('Error: PRIVATE_KEY environment variable is required')
-    process.exit(1)
+    throw new Error('Error: PRIVATE_KEY environment variable is required')
   }
 
   const chainId = await getChainId(RPC_URL)
