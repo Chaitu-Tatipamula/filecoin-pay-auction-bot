@@ -178,12 +178,12 @@ export function getUsdfcAddress(chainId) {
  *   delay: number
  * }>}
  */
-export async function initializeConfig(env) {
+export async function initializeConfig(env = {}) {
   const {
     RPC_URL = 'https://api.calibration.node.glif.io/',
     PRIVATE_KEY,
     DELAY = 600000,
-  } = env ?? {}
+  } = env
 
   if (!PRIVATE_KEY) {
     console.error('Error: PRIVATE_KEY environment variable is required')
