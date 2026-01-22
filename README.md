@@ -134,7 +134,7 @@ This bot uses the [`@filoz/synapse-core`](https://github.com/FilOzone/synapse-sd
 FilecoinPay contract addresses used by SDK:
 
 - Calibration (chain ID 314159): `0x09a0fDc2723fAd1A7b8e3e00eE5DF73841df55a0`
-- Mainnet (chain ID 314): `0x23b1e018F08BB982348b15a86ee926eEBbf7F4DAa`
+- Mainnet (chain ID 314): `0x23b1e018F08BB982348b15a86ee926eEBf7F4DAa`
 
 ### Sushiswap Integration
 
