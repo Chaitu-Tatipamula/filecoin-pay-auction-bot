@@ -16,15 +16,24 @@ import { getChain } from '@filoz/synapse-core/chains'
 import { payments } from '@filoz/synapse-core/abis'
 import { ChainId } from 'sushi'
 import { getQuote, RouteStatus } from 'sushi/evm'
+/**
+ * @import {
+ *   Account,
+ *   Address,
+ *   PublicClient,
+ *   TransactionReceipt,
+ *   WalletClient
+ * } from "viem"
+ */
 
 export const SUSHISWAP_NATIVE_PLACEHOLDER =
   '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
 
 /**
  * @typedef {Object} Clients
- * @property {import('viem').PublicClient} publicClient
- * @property {import('viem').WalletClient} walletClient
- * @property {import('viem').Account} account
+ * @property {PublicClient} publicClient
+ * @property {WalletClient} walletClient
+ * @property {Account} account
  */
 
 /**
@@ -38,7 +47,7 @@ export async function createClient(chainId, rpcUrl, privateKey) {
     chains: [filecoin, filecoinCalibration],
     id: chainId,
   })
-  const account = privateKeyToAccount(/** @type {`0x${string}`} */ (privateKey))
+  const account = privateKeyToAccount(/** @type {Address} */ (privateKey))
 
   const publicClient = createPublicClient({
     chain: filecoinCalibration,
@@ -67,33 +76,33 @@ export async function getChainId(rpcUrl) {
 }
 
 /**
- * @param {import('viem').PublicClient} publicClient
+ * @param {PublicClient} publicClient
  * @param {string} address
  * @returns {Promise<bigint>}
  */
 export async function getBalance(publicClient, address) {
   return await publicClient.getBalance({
-    address: /** @type {`0x${string}`} */ (address),
+    address: /** @type {Address} */ (address),
   })
 }
 
 /**
  * @typedef {Object} Auction
- * @property {`0x${string}`} token
+ * @property {Address} token
  * @property {bigint} startPrice
  * @property {bigint} startTime
  * @property {bigint} availableFees
  */
 
 /**
- * @param {import('viem').PublicClient} publicClient
+ * @param {PublicClient} publicClient
  * @param {string} tokenAddress
  * @returns {Promise<Auction | null>}
  */
 export async function getActiveAuction(publicClient, tokenAddress) {
   const auction = await auctionInfo(
     /** @type {any} */ (publicClient),
-    /** @type {`0x${string}`} */ (tokenAddress),
+    /** @type {Address} */ (tokenAddress),
   )
 
   if (auction.startTime === 0n) {
@@ -102,7 +111,7 @@ export async function getActiveAuction(publicClient, tokenAddress) {
 
   const availableFees = await auctionFunds(
     /** @type {any} */ (publicClient),
-    /** @type {`0x${string}`} */ (tokenAddress),
+    /** @type {Address} */ (tokenAddress),
   )
 
   return {
@@ -113,14 +122,14 @@ export async function getActiveAuction(publicClient, tokenAddress) {
 
 /**
  * @param {object} args
- * @param {import('viem').WalletClient} args.walletClient
- * @param {import('viem').PublicClient} args.publicClient
- * @param {import('viem').Account} args.account
- * @param {`0x${string}`} args.tokenAddress
- * @param {`0x${string}`} args.recipient
+ * @param {WalletClient} args.walletClient
+ * @param {PublicClient} args.publicClient
+ * @param {Account} args.account
+ * @param {Address} args.tokenAddress
+ * @param {Address} args.recipient
  * @param {bigint} args.amount
  * @param {bigint} args.price
- * @returns {Promise<import('viem').TransactionReceipt>}
+ * @returns {Promise<TransactionReceipt>}
  */
 export async function placeBid({
   walletClient,
@@ -151,7 +160,7 @@ export async function placeBid({
 
 /**
  * @param {number} chainId
- * @returns {`0x${string}`}
+ * @returns {Address}
  */
 export function getUsdfcAddress(chainId) {
   switch (chainId) {
@@ -169,12 +178,12 @@ export function getUsdfcAddress(chainId) {
  *
  * @param {NodeJS.ProcessEnv} [env] - Environment variables
  * @returns {Promise<{
- *   publicClient: import('viem').PublicClient
- *   walletClient: import('viem').WalletClient
- *   account: import('viem').Account
- *   walletAddress: `0x${string}`
- *   usdfcAddress: `0x${string}`
- *   usdfcAddressMainnet: `0x${string}`
+ *   publicClient: PublicClient
+ *   walletClient: WalletClient
+ *   account: Account
+ *   walletAddress: Address
+ *   usdfcAddress: Address
+ *   usdfcAddressMainnet: Address
  *   delay: number
  * }>}
  */
@@ -224,9 +233,9 @@ export async function initializeConfig(env = {}) {
  * Get active auction for token and calculate price
  *
  * @param {object} config
- * @param {import('viem').PublicClient} config.publicClient - Viem public client
- *   for blockchain queries
- * @param {`0x${string}`} config.tokenAddress - Token contract address
+ * @param {PublicClient} config.publicClient - Viem public client for blockchain
+ *   queries
+ * @param {Address} config.tokenAddress - Token contract address
  * @returns {Promise<{
  *   auction: any
  *   bidAmount: bigint
@@ -259,8 +268,8 @@ export async function getTokenAuction({ publicClient, tokenAddress }) {
 /**
  * Check if auction is profitable by comparing with market mainnet price
  *
- * @param {`0x${string}`} tokenIn - Token address on mainnet
- * @param {`0x${string}`} tokenOut - Token address on mainnet
+ * @param {Address} tokenIn - Token address on mainnet
+ * @param {Address} tokenOut - Token address on mainnet
  * @param {bigint} availableFees - Amount of USDFC tokens available in auction
  * @param {bigint} totalAuctionPrice - Current auction price in FIL
  * @returns {Promise<boolean>} - Returns true if auction is profitable
@@ -312,17 +321,14 @@ export async function isAuctionProfitable(
  * Process a single auction check iteration
  *
  * @param {object} config
- * @param {import('viem').PublicClient} config.publicClient - Viem public client
- *   for blockchain queries
- * @param {import('viem').WalletClient} config.walletClient - Viem wallet client
- *   for transactions
- * @param {import('viem').Account} config.account - Wallet account for signing
+ * @param {PublicClient} config.publicClient - Viem public client for blockchain
+ *   queries
+ * @param {WalletClient} config.walletClient - Viem wallet client for
  *   transactions
- * @param {`0x${string}`} config.walletAddress - Address to receive auction
- *   tokens
- * @param {`0x${string}`} config.usdfcAddress - USDFC token contract address
- * @param {`0x${string}`} config.usdfcAddressMainnet - USDFC token address on
- *   mainnet
+ * @param {Account} config.account - Wallet account for signing transactions
+ * @param {Address} config.walletAddress - Address to receive auction tokens
+ * @param {Address} config.usdfcAddress - USDFC token contract address
+ * @param {Address} config.usdfcAddressMainnet - USDFC token address on mainnet
  */
 export async function processAuctions({
   publicClient,
@@ -399,9 +405,9 @@ export async function processAuctions({
     publicClient,
     account,
     price: auctionPrice,
-    tokenAddress: /** @type {`0x${string}`} */ (auction.token),
+    tokenAddress: /** @type {Address} */ (auction.token),
     amount: bidAmount,
-    recipient: /** @type {`0x${string}`} */ (walletAddress),
+    recipient: /** @type {Address} */ (walletAddress),
   })
 
   console.log()
