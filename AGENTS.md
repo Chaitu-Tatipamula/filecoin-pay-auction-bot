@@ -93,7 +93,7 @@ The `createClient` function supports both networks: `mainnet` and `calibration`.
 The bot uses Sushiswap's REST API for price checking:
 
 - **API endpoint**: `https://api.sushi.com/quote/v7/{chainId}`
-- **Quote pair**: USDFC → WFIL
+- **Quote pair**: USDFC → native FIL
 - **Quote network**: Always queries mainnet (chain ID 314) for accurate pricing
 - **Quote function**: REST API with `tokenIn`, `tokenOut`, `amount`, `maxSlippage`
 - **Max slippage**: Default 0.005 (0.5%)
