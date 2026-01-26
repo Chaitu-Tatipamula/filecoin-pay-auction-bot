@@ -306,7 +306,18 @@ export async function isAuctionProfitable(
     return false
   }
 
-  const amountOut = BigInt(mainnetMarketQuote.assumedAmountOut)
+  let amountOut
+  try {
+    amountOut = BigInt(mainnetMarketQuote.assumedAmountOut)
+  } catch (_error) {
+    console.log(
+      `Invalid Sushiswap quote amountOut: ${String(
+        mainnetMarketQuote.assumedAmountOut,
+      )}`,
+    )
+    console.log('Skipping auction due to invalid quote output amount.')
+    return false
+  }
   console.log()
   console.log('Price comparison:')
   console.log(` Auction price: ${formatEther(totalAuctionPrice)}`)
