@@ -8,7 +8,9 @@ This bot monitors ERC20 token auctions on the [Filecoin Pay](https://github.com/
 
 ## Features
 
-- Monitors multiple ERC20 token auctions simultaneously
+- Monitors USDFC token auction
+- Sushiswap price checking for profitable bidding
+- Only bids when market price > auction price
 - Periodically places bids directly from wallet based on configurable intervals
 
 ## Requirements
@@ -30,12 +32,24 @@ Create a `.env` file or set environment variables:
 ### Required Variables
 
 - `PRIVATE_KEY` - Wallet private key (with 0x prefix)
-- `TOKEN_ADDRESSES` - Comma-separated ERC20 token addresses to monitor
 
 ### Optional Variables
 
 - `RPC_URL` - RPC endpoint (default: `https://api.calibration.node.glif.io/`). Chain is determined from the RPC.
 - `DELAY` - Milliseconds between auction checks (default: `600000` = 10 minutes)
+
+### Hardcoded Token Addresses
+
+The bot monitors **USDFC** token only:
+
+**USDFC**:
+
+- Calibration: `0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0`
+- Mainnet: `0x80B98d3aa09ffff255c3ba4A241111Ff1262F045`
+
+**FIL** (Sushiswap quotes):
+
+- Calibration & Mainnet: `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`
 
 **Note:** Contract addresses are determined automatically by the SDK based on the chain ID. No manual contract address configuration is needed.
 
@@ -44,7 +58,6 @@ Create a `.env` file or set environment variables:
 ```bash
 RPC_URL=https://api.calibration.node.glif.io/
 PRIVATE_KEY=0x1234567890abcdef...
-TOKEN_ADDRESSES=0xToken1Address,0xToken2Address
 DELAY=600000
 ```
 
@@ -59,12 +72,14 @@ npm start
 The bot will:
 
 1. Initialize and display wallet address and balance
-2. Monitor specified token addresses for active auctions (using `@filoz/synapse-core` SDK)
-3. Select the first auction with available fees
-4. Calculate next block price using SDK's `auctionPriceAt` function
-5. Place a bid if wallet has sufficient balance
-6. Wait for configured delay before next check
-7. Repeat indefinitely
+2. Monitor USDFC token for active auction (using `@filoz/synapse-core` SDK)
+3. Check if auction has available fees
+4. Calculate auction price per token using SDK's `auctionPriceAt` function
+5. Get Sushiswap quote for WFIL → USDFC on mainnet to determine market price
+6. Compare market price vs auction price
+7. Place a bid only if market price >= auction price and wallet has sufficient balance
+8. Wait for configured delay before next check
+9. Repeat indefinitely
 
 ## Development
 
@@ -98,13 +113,14 @@ Filecoin Pay uses dutch auctions where:
 
 ### Bot Logic
 
-1. Query auction info using SDK's `auctionInfo()` for each token address
-2. Filter out tokens with no active auction (startTime = 0)
-3. Query available fees using SDK's `auctionFunds()` for each auction
-4. Select first auction with available fees > 0
-5. Calculate next block price using SDK's `auctionPriceAt()` with `block.timestamp + 30n`
-6. Place bid via `burnForFees(token, recipient, amount)` function
-7. Bot bids for available fees only if balance is sufficient
+1. Query auction info for USDFC using SDK's `auctionInfo()`
+2. Skip if no active auction (startTime = 0) or no available fees
+3. Query available fees using SDK's `auctionFunds()`
+4. Calculate auction price per token using SDK's `auctionPriceAt()` with current timestamp
+5. **Get Sushiswap quote** for available fees in the auction.
+6. **Compare profitability**: Only proceed if market price > auction price
+7. Verify wallet has sufficient FIL balance
+8. Place bid via `burnForFees(token, recipient, amount)` function
 
 ### SDK Integration
 
@@ -115,10 +131,20 @@ This bot uses the [`@filoz/synapse-core`](https://github.com/FilOzone/synapse-sd
 - **Price calculation** - Uses `auctionPriceAt()` for accurate next-block pricing
 - **Contract addresses** - Automatically resolved from chain ID via `getChain()`
 
-Contract addresses used by SDK:
+FilecoinPay contract addresses used by SDK:
 
 - Calibration (chain ID 314159): `0x09a0fDc2723fAd1A7b8e3e00eE5DF73841df55a0`
 - Mainnet (chain ID 314): `0x23b1e018F08BB982348b15a86ee926eEBf7F4DAa`
+
+### Sushiswap Integration
+
+The bot uses Sushiswap quote API to check market prices before bidding:
+
+- **Quote pair**: USDFC → FIL (using the 0.05% slippage)
+- **Quote network**: Always queries mainnet for accurate pricing (even when bidding on Calibration)
+- **Profitability check**: Only bids when market price > auction price
+
+This ensures the bot never overpays for tokens relative to their market value.
 
 ## License
 

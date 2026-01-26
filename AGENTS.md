@@ -87,3 +87,16 @@ The SDK implements the exponential decay formula: `price = startPrice / 2^(elaps
 ### Environment Support
 
 The `createClient` function supports both networks: `mainnet` and `calibration`. Network is determined by passing the `RPC_URL` to `createClient`. The function will automatically detect the chain and configure the client accordingly.
+
+### Sushiswap Integration
+
+The bot uses Sushiswap's REST API for price checking:
+
+- **API endpoint**: `https://api.sushi.com/quote/v7/{chainId}`
+- **Quote pair**: USDFC → native FIL
+- **Quote network**: Always queries mainnet (chain ID 314) for accurate pricing
+- **Quote function**: REST API with `tokenIn`, `tokenOut`, `amount`, `maxSlippage`
+- **Max slippage**: Default 0.005 (0.5%)
+- **Profitability logic**: Bot bids only if market price >= auction price
+- **Error handling**: Quote failures skip auction and log warning, continue monitoring
+- **Implementation**: Uses Sushi's EVM SDK `getQuote` function from `sushi/evm`
