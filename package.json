@@ -14,8 +14,7 @@
   },
   "dependencies": {
     "@filoz/synapse-core": "^0.1.4",
-    "@solana/addresses": "^5.4.0",
-    "sushi": "^6.4.7",
+    "sushi": "^6.4.10",
     "viem": "^2.44.4"
   },
   "devDependencies": {
