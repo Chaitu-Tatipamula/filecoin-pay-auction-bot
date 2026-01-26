@@ -81,6 +81,181 @@ The bot will:
 8. Wait for configured delay before next check
 9. Repeat indefinitely
 
+## Kubernetes Deployment
+
+The auction bot can be deployed to Kubernetes using the provided [kustomize](https://kustomize.io/) manifests. This approach is suitable for production deployments and provides better resource management, monitoring, and operational capabilities.
+
+### Prerequisites
+
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) - Kubernetes command-line tool
+- Access to a Kubernetes cluster (local via [kind](https://kind.sigs.k8s.io/)/[minikube](https://minikube.sigs.k8s.io/), or remote)
+- [Docker](https://docs.docker.com/get-docker/) - Required only for local overlay
+
+### Deployment Overlays
+
+The repository includes three kustomize overlays for different environments:
+
+| Overlay       | Use Case                  | Image                               | Network     | RPC URL                        |
+| ------------- | ------------------------- | ----------------------------------- | ----------- | ------------------------------ |
+| `local`       | Local development/testing | `auction-bot:local` (built locally) | Calibration | `api.calibration.node.glif.io` |
+| `calibration` | Testnet deployment        | `filoz/auction-bot:latest`          | Calibration | `api.calibration.node.glif.io` |
+| `mainnet`     | Production deployment     | `filoz/auction-bot:stable`          | Mainnet     | `api.node.glif.io`             |
+
+### Configure Secrets
+
+Before deploying, you must create and configure the wallet private key secret file for your target environment:
+
+1. Copy the example secret file to create your actual secret file:
+
+```bash
+# For local deployment
+cp kustomize/overlays/local/secret.yaml.example kustomize/overlays/local/secret.yaml
+
+# For calibration deployment
+cp kustomize/overlays/calibration/secret.yaml.example kustomize/overlays/calibration/secret.yaml
+
+# For mainnet deployment
+cp kustomize/overlays/mainnet/secret.yaml.example kustomize/overlays/mainnet/secret.yaml
+```
+
+2. Edit the secret file and replace `<PRIVATE_KEY>` with your actual private key (including `0x` prefix):
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auction-bot-secrets
+  namespace: filecoin-pay-auction-bot
+type: Opaque
+stringData:
+  PRIVATE_KEY: '0x1234567890abcdef...'
+```
+
+**Security Warning:**
+
+- The `secret.yaml` file is in `.gitignore` and will never be committed
+- Template files (`secret.yaml.example`) are safe to commit as they contain only placeholders
+- For production deployments, consider using [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) or [External Secrets Operator](https://external-secrets.io/)
+- Alternatively, create secrets directly: `kubectl create secret generic auction-bot-secrets --from-literal=PRIVATE_KEY=0x... -n filecoin-pay-auction-bot`
+
+### Deploy to Local Environment
+
+For local development and testing:
+
+1. Build the Docker image:
+
+```bash
+docker build -t auction-bot:local .
+```
+
+2. Configure the secret (see above)
+
+3. Deploy to your local cluster:
+
+```bash
+kubectl apply -k kustomize/overlays/local
+```
+
+4. View logs:
+
+```bash
+kubectl logs -n filecoin-pay-auction-bot -l app.kubernetes.io/name=auction-bot -f
+```
+
+### Deploy to Calibration (Testnet)
+
+For testnet deployment:
+
+1. Configure the secret (see above)
+
+2. Deploy to your cluster:
+
+```bash
+kubectl apply -k kustomize/overlays/calibration
+```
+
+3. Monitor the deployment:
+
+```bash
+kubectl get pods -n filecoin-pay-auction-bot -w
+```
+
+4. View logs:
+
+```bash
+kubectl logs -n filecoin-pay-auction-bot -l app.kubernetes.io/name=auction-bot -f
+```
+
+### Deploy to Mainnet (Production)
+
+For production deployment:
+
+1. Configure the secret (see above)
+
+2. Review the configuration:
+   - Uses stable image tag (`filoz/auction-bot:stable`)
+   - Connects to mainnet RPC (`api.node.glif.io`)
+   - Ensure wallet has sufficient FIL balance
+
+3. Deploy to your cluster:
+
+```bash
+kubectl apply -k kustomize/overlays/mainnet
+```
+
+4. Monitor the deployment:
+
+```bash
+kubectl get pods -n filecoin-pay-auction-bot -w
+```
+
+5. View logs:
+
+```bash
+kubectl logs -n filecoin-pay-auction-bot -l app.kubernetes.io/name=auction-bot -f
+```
+
+### Common Operations
+
+**Check pod status:**
+
+```bash
+kubectl get pods -n filecoin-pay-auction-bot
+```
+
+**View detailed pod information:**
+
+```bash
+kubectl describe pod -n filecoin-pay-auction-bot -l app.kubernetes.io/name=auction-bot
+```
+
+**Update configuration:**
+
+Edit the configmap patch file, then reapply:
+
+```bash
+# Edit configuration
+vi kustomize/overlays/{local|calibration|mainnet}/configmap-patch.yaml
+
+# Apply changes
+kubectl apply -k kustomize/overlays/{local|calibration|mainnet}
+
+# Restart pod to pick up changes
+kubectl rollout restart deployment/auction-bot -n filecoin-pay-auction-bot
+```
+
+**Delete deployment:**
+
+```bash
+kubectl delete -k kustomize/overlays/{local|calibration|mainnet}
+```
+
+**Delete namespace (removes all resources):**
+
+```bash
+kubectl delete namespace filecoin-pay-auction-bot
+```
+
 ## Development
 
 ### Run Tests

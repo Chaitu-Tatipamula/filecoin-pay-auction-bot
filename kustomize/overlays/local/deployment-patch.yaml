@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: auction-bot
-  namespace: auction-bot
+  namespace: filecoin-pay-auction-bot
 spec:
   template:
     spec:
