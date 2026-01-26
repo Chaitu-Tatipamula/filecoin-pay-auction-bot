@@ -310,9 +310,7 @@ export async function isAuctionProfitable(
   console.log()
   console.log('Price comparison:')
   console.log(` Auction price: ${formatEther(totalAuctionPrice)}`)
-  console.log(` Market price: ${formatEther(BigInt(amountOut))}`)
-  console.log(`  Quote input: ${formatEther(availableFees)}`)
-  console.log(`  Quote output: ${formatEther(amountOut)}`)
+  console.log(` Swap out amount: ${formatEther(BigInt(amountOut))}`)
 
   return BigInt(amountOut) >= totalAuctionPrice
 }
