@@ -385,9 +385,9 @@ export async function processAuctions({
   console.log('Checking balance...')
   console.log()
 
-  if (balance < auctionPrice) {
+  if (balance < totalAuctionPrice) {
     console.log(
-      `Insufficient balance. Need ${formatEther(auctionPrice)} FIL but only have ${formatEther(balance)} FIL`,
+      `Insufficient balance. Need ${formatEther(totalAuctionPrice)} FIL (including estimated gas) but only have ${formatEther(balance)} FIL`,
     )
     return
   }
