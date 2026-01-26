@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: auction-bot
-          image: filoz/auction-bot:latest
+          image: ghcr.io/filozone/filecoin-pay-auction-bot:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
