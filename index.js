@@ -305,7 +305,7 @@ export async function isAuctionProfitable(
   console.log(`  Quote input: ${formatEther(availableFees)}`)
   console.log(`  Quote output: ${formatEther(amountOut)}`)
 
-  return BigInt(amountOut) > totalAuctionPrice
+  return BigInt(amountOut) >= totalAuctionPrice
 }
 
 /**
