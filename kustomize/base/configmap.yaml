@@ -4,5 +4,5 @@ metadata:
   name: auction-bot-env
   namespace: auction-bot
 data:
-  DELAY: '600000'
   RPC_URL: 'https://api.calibration.node.glif.io/'
+  DELAY: '600000'
