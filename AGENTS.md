@@ -99,4 +99,4 @@ The bot uses Sushiswap's REST API for price checking:
 - **Max slippage**: Default 0.005 (0.5%)
 - **Profitability logic**: Bot bids only if market price >= auction price
 - **Error handling**: Quote failures skip auction and log warning, continue monitoring
-- **Implementation**: Uses native `fetch` for HTTP calls
+- **Implementation**: Uses Sushi's EVM SDK `getQuote` function from `sushi/evm`
