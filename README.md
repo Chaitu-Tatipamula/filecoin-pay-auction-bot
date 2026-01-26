@@ -75,7 +75,7 @@ The bot will:
 2. Monitor USDFC token for active auction (using `@filoz/synapse-core` SDK)
 3. Check if auction has available fees
 4. Calculate auction price per token using SDK's `auctionPriceAt` function
-5. Get Uniswap V3 quote for WFIL → USDFC on mainnet to determine market price
+5. Get Sushiswap quote for WFIL → USDFC on mainnet to determine market price
 6. Compare market price vs auction price
 7. Place a bid only if market price >= auction price and wallet has sufficient balance
 8. Wait for configured delay before next check
