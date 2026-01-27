@@ -50,7 +50,7 @@ export async function createClient(chainId, rpcUrl, privateKey) {
   const account = privateKeyToAccount(/** @type {Address} */ (privateKey))
 
   const publicClient = createPublicClient({
-    chain: filecoinCalibration,
+    chain,
     transport: http(rpcUrl),
   })
 
