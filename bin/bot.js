@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { setTimeout } from 'node:timers/promises'
 import { initializeConfig, processAuctions } from '../index.js'
 
