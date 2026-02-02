@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: auction-bot-env
-  namespace: auction-bot
+  namespace: filecoin-pay-auction-bot
 data:
-  RPC_URL: "https://api.node.glif.io/"
-  DELAY: "600000"
+  RPC_URL: 'https://api.node.glif.io/'
+  DELAY: '600000'
