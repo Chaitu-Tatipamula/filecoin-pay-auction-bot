@@ -84,28 +84,7 @@ The `createClient` function supports both networks: `mainnet` and `calibration`.
 
 ### Sushiswap Integration
 
-The bot uses Sushiswap's REST API for price checking and swap execution:
-
-#### Price Checking (Quote API)
-
-- **API endpoint**: `https://api.sushi.com/quote/v7/{chainId}`
-- **Quote pair**: USDFC → native FIL
-- **Quote network**: Always queries mainnet (chain ID 314) for accurate pricing
-- **Quote function**: Uses `getQuote` from `sushi/evm` SDK
-- **Max slippage**: Default 0.005 (0.5%)
-- **Profitability logic**: Bot bids only if market price >= total cost (auction + gas)
-- **Error handling**: Quote failures skip auction and log warning, continue monitoring
-
-#### Swap Execution (Mainnet Only)
-
-- **API endpoint**: `https://api.sushi.com/swap/v7/{chainId}`
-- **Swap function**: Uses `getSwap` from `sushi/evm` SDK with `simulate: true`
-- **Router discovery**: Router address discovered dynamically from swap response
-- **Token approval**: USDFC approved for router at bot startup (uses `maxUint256`)
-- **Simultaneous submission**: Bid and swap submitted together using nonce+1 to reduce frontrunning
-- **Batching**: Existing USDFC balance + newly acquired tokens swapped together
-- **Gas calculation**: Swap gas included in profitability calculation
-- **Calibration network**: Swap functionality disabled (Sushiswap API only supports mainnet)
+The bot uses Sushiswap's SDK for swap quoting.
 
 #### Frontrunning Protection (Nonce+1)
 
