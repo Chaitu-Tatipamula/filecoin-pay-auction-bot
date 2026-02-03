@@ -5,10 +5,12 @@ import { initializeConfig, ensureApproval } from '../lib/config.js'
 import { processAuctions } from '../lib/auction.js'
 
 const config = await initializeConfig(process.env)
-const sushiswapRouterAddress =
-  config.chainId === 314
-    ? await discoverSushiswapRouter(config.usdfcAddress, config.walletAddress)
-    : null
+
+const sushiswapRouterAddress = await discoverSushiswapRouter({
+  chainId: config.chainId,
+  tokenIn: config.usdfcAddress,
+  sender: config.account.address,
+})
 
 if (sushiswapRouterAddress) {
   await ensureApproval({
