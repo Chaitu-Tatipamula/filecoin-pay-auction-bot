@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auction-stats
+  namespace: filecoin-pay-auction-bot
+  labels:
+    app.kubernetes.io/name: auction-stats
+    app.kubernetes.io/component: stats
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: auction-stats
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: auction-stats
+        app.kubernetes.io/component: stats
+    spec:
+      containers:
+        - name: auction-stats
+          image: ghcr.io/filozone/filecoin-pay-auction-bot:latest
+          imagePullPolicy: IfNotPresent
+          command: ['npm', 'run', 'start:stats']
+          envFrom:
+            - configMapRef:
+                name: auction-stats-env
+            - secretRef:
+                name: auction-stats-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi

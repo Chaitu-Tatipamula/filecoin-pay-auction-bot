@@ -9,11 +9,13 @@
     "lint": "eslint && prettier --check . && tsc -p .",
     "lint:fix": "eslint --fix && prettier --write .",
     "start": "node bin/bot.js",
+    "start:stats": "node bin/stats.js",
     "test": "npm run lint && npm run test:unit",
     "test:unit": "node --test"
   },
   "dependencies": {
     "@filoz/synapse-core": "^0.1.4",
+    "@influxdata/influxdb-client": "^1.35.0",
     "dotenv": "^17.2.3",
     "sushi": "^6.4.10",
     "viem": "^2.44.4"

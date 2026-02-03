@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auction-stats-env
+  namespace: filecoin-pay-auction-bot
+data:
+  RPC_URL: 'https://api.node.glif.io/'
+  STATS_INTERVAL: '60000'
+  INFLUXDB_URL: 'http://influxdb:8086'
+  INFLUXDB_ORG: 'filoz'
+  INFLUXDB_BUCKET: 'auction-stats'

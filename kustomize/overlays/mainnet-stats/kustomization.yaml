@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: filecoin-pay-auction-bot
+
+resources:
+  - ../../base-stats
+  - secret.yaml
+
+patches:
+  - path: configmap-patch.yaml
+
+images:
+  - name: ghcr.io/filozone/filecoin-pay-auction-bot
+    newTag: latest
