@@ -2,6 +2,7 @@ import { describe, it, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { encodeAbiParameters } from 'viem'
 import { RouteStatus } from 'sushi/evm'
+import { auctionPriceAt } from '@filoz/synapse-core/auction'
 import { getChain } from '@filoz/synapse-core/chains'
 import { payments } from '@filoz/synapse-core/abis'
 import {
@@ -181,14 +182,15 @@ describe('auction', () => {
     })
 
     it('returns auction data when active with fees', async () => {
+      const startPrice = 1000n // Needs to be large enough to not decay to 0
+      const startTime = 1700000000n
+      const funds = 1n
+      const blockTimestamp = 1700000100n
+
       const mockPublicClient = createMockPublicClient(
+        { startPrice, startTime, funds },
         {
-          startPrice: 1000n, // Needs to be large enough to not decay to 0
-          startTime: 1700000000n,
-          funds: 1n,
-        },
-        {
-          getBlock: mock.fn(async () => ({ timestamp: 1700000100n })),
+          getBlock: mock.fn(async () => ({ timestamp: blockTimestamp })),
         },
       )
 
@@ -197,13 +199,19 @@ describe('auction', () => {
         tokenAddress,
       })
 
-      assert.ok(result)
-      assert.equal(result.auction.token, tokenAddress)
-      assert.equal(result.auction.startPrice, 1000n)
-      assert.equal(result.auction.startTime, 1700000000n)
-      assert.equal(result.auction.availableFees, 1n)
-      assert.equal(result.bidAmount, 1n)
-      assert.ok(result.auctionPrice > 0n)
+      const expectedAuction = {
+        token: tokenAddress,
+        startPrice,
+        startTime,
+        availableFees: funds,
+      }
+      const expectedPrice = auctionPriceAt(expectedAuction, blockTimestamp)
+
+      assert.deepStrictEqual(result, {
+        auction: expectedAuction,
+        bidAmount: funds,
+        auctionPrice: expectedPrice,
+      })
     })
   })
 
@@ -475,6 +483,86 @@ describe('auction', () => {
         mockPublicClient.waitForTransactionReceipt.mock.calls.length,
         2,
       ) // bid + swap
+    })
+
+    it('submits bid and swap with sequential nonces for frontrunning protection', async () => {
+      const baseNonce = 42
+      const funds = 1n
+      const account = createMockAccount()
+      const swapTx = {
+        to: sushiswapRouterAddress,
+        data: '0xabcdef',
+        value: 0n,
+      }
+
+      let capturedSimulateRequest
+      const mockPublicClient = createProcessAuctionsMockClient(
+        {
+          startPrice: 1n,
+          startTime: 1700000000n,
+          funds,
+        },
+        {
+          getTransactionCount: mock.fn(async () => baseNonce),
+          simulateContract: mock.fn(async (params) => {
+            capturedSimulateRequest = params
+            return { request: params }
+          }),
+        },
+      )
+
+      let capturedBidRequest
+      const mockWalletClient = {
+        chain: { id: 314159 },
+        writeContract: mock.fn(async (request) => {
+          capturedBidRequest = request
+          return '0xbidhash'
+        }),
+      }
+
+      let capturedSwapArgs
+      const mockExecuteSwapWithCapture = mock.fn(async (args) => {
+        capturedSwapArgs = args
+        return '0xswaphash'
+      })
+
+      const mockGetSwapQuoteWithTx = mock.fn(async () => ({
+        status: RouteStatus.Success,
+        assumedAmountOut: '2',
+        tx: swapTx,
+      }))
+
+      await processAuctions({
+        publicClient: mockPublicClient,
+        walletClient: mockWalletClient,
+        account,
+        walletAddress,
+        usdfcAddress,
+        usdfcAddressMainnet,
+        sushiswapRouterAddress,
+        getBalance: mockGetBalance,
+        getTokenBalance: mockGetTokenBalance,
+        getSwapQuote: mockGetSwapQuoteWithTx,
+        executeSwap: mockExecuteSwapWithCapture,
+      })
+
+      // Verify two transactions were submitted
+      assert.equal(mockWalletClient.writeContract.mock.calls.length, 1)
+      assert.equal(mockExecuteSwapWithCapture.mock.calls.length, 1)
+
+      // Verify bid request with base nonce
+      assert.deepStrictEqual(capturedBidRequest, {
+        ...capturedSimulateRequest,
+        nonce: baseNonce,
+      })
+
+      // Verify swap request with base nonce + 1
+      assert.deepStrictEqual(capturedSwapArgs, {
+        walletClient: mockWalletClient,
+        account,
+        swapTx,
+        nonce: baseNonce + 1,
+      })
     })
   })
 })
