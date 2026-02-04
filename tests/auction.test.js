@@ -2,6 +2,8 @@ import { describe, it, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { encodeAbiParameters } from 'viem'
 import { RouteStatus } from 'sushi/evm'
+import { getChain } from '@filoz/synapse-core/chains'
+import { payments } from '@filoz/synapse-core/abis'
 import {
   getActiveAuction,
   getTokenAuction,
@@ -51,13 +53,23 @@ describe('auction', () => {
   describe('placeBid', () => {
     it('simulates and writes contract with correct parameters', async () => {
       const expectedHash = '0xbid1234'
-      const mockRequest = { someRequest: true }
+      const tokenAddress = '0x3333333333333333333333333333333333333333'
+      const recipient = '0x4444444444444444444444444444444444444444'
+      const amount = 1000n
+      const price = 500n
+      const chainId = 314159
+      const chain = getChain(chainId)
+      const contractAddress = chain.contracts.payments.address
 
-      const simulateContract = mock.fn(async () => ({ request: mockRequest }))
+      let capturedRequest
+      const simulateContract = mock.fn(async (params) => {
+        capturedRequest = params
+        return { request: params }
+      })
       const mockPublicClient = { simulateContract }
       const writeContract = mock.fn(async () => expectedHash)
       const mockWalletClient = {
-        chain: { id: 314159 },
+        chain: { id: chainId },
         writeContract,
       }
       const mockAccount = {
@@ -68,10 +80,10 @@ describe('auction', () => {
         walletClient: mockWalletClient,
         publicClient: mockPublicClient,
         account: mockAccount,
-        tokenAddress: '0x3333333333333333333333333333333333333333',
-        recipient: '0x4444444444444444444444444444444444444444',
-        amount: 1000n,
-        price: 500n,
+        tokenAddress,
+        recipient,
+        amount,
+        price,
         nonce: 10,
       })
 
@@ -79,9 +91,21 @@ describe('auction', () => {
       assert.equal(simulateContract.mock.calls.length, 1)
       assert.equal(writeContract.mock.calls.length, 1)
 
-      const call = writeContract.mock.calls[0]
-      assert.ok(call)
-      assert.deepEqual(call.arguments, [{ someRequest: true, nonce: 10 }])
+      const expectedRequest = {
+        account: mockAccount,
+        address: contractAddress,
+        abi: payments,
+        functionName: 'burnForFees',
+        args: [tokenAddress, recipient, amount],
+        value: price,
+      }
+      assert.deepStrictEqual(capturedRequest, expectedRequest)
+
+      const writeCall = writeContract.mock.calls[0]
+      assert.ok(writeCall)
+      assert.deepStrictEqual(writeCall.arguments, [
+        { ...expectedRequest, nonce: 10 },
+      ])
     })
   })
 
@@ -159,9 +183,9 @@ describe('auction', () => {
     it('returns auction data when active with fees', async () => {
       const mockPublicClient = createMockPublicClient(
         {
-          startPrice: 1000000000000000000n,
+          startPrice: 1000n, // Needs to be large enough to not decay to 0
           startTime: 1700000000n,
-          funds: 500000000000000000n,
+          funds: 1n,
         },
         {
           getBlock: mock.fn(async () => ({ timestamp: 1700000100n })),
@@ -175,10 +199,10 @@ describe('auction', () => {
 
       assert.ok(result)
       assert.equal(result.auction.token, tokenAddress)
-      assert.equal(result.auction.startPrice, 1000000000000000000n)
+      assert.equal(result.auction.startPrice, 1000n)
       assert.equal(result.auction.startTime, 1700000000n)
-      assert.equal(result.auction.availableFees, 500000000000000000n)
-      assert.equal(result.bidAmount, 500000000000000000n)
+      assert.equal(result.auction.availableFees, 1n)
+      assert.equal(result.bidAmount, 1n)
       assert.ok(result.auctionPrice > 0n)
     })
   })
@@ -195,11 +219,11 @@ describe('auction', () => {
     let mockExecuteSwap
 
     beforeEach(() => {
-      mockGetBalance = mock.fn(async () => 10000000000000000000n)
+      mockGetBalance = mock.fn(async () => 10n)
       mockGetTokenBalance = mock.fn(async () => 0n)
       mockGetSwapQuote = mock.fn(async () => ({
         status: RouteStatus.Success,
-        assumedAmountOut: '2000000000000000000',
+        assumedAmountOut: '2',
         tx: {
           to: sushiswapRouterAddress,
           data: '0xabcdef',
@@ -212,9 +236,9 @@ describe('auction', () => {
     function createProcessAuctionsMockClient(config, additionalMethods = {}) {
       return createMockPublicClient(config, {
         getBlock: mock.fn(async () => ({ timestamp: 1700000100n })),
-        estimateContractGas: mock.fn(async () => 100000n),
-        estimateGas: mock.fn(async () => 200000n),
-        getGasPrice: mock.fn(async () => 1000000000n), // 1 gwei
+        estimateContractGas: mock.fn(async () => 1n),
+        estimateGas: mock.fn(async () => 1n),
+        getGasPrice: mock.fn(async () => 1n),
         getTransactionCount: mock.fn(async () => 5),
         simulateContract: mock.fn(async () => ({ request: {} })),
         waitForTransactionReceipt: mock.fn(async () => ({ status: 'success' })),
@@ -238,9 +262,9 @@ describe('auction', () => {
 
     it('returns early when no active auction (startTime is 0)', async () => {
       const mockPublicClient = createProcessAuctionsMockClient({
-        startPrice: 1000000000000000000n,
+        startPrice: 1n,
         startTime: 0n, // No active auction
-        funds: 500000000000000000n,
+        funds: 1n,
       })
 
       await processAuctions({
@@ -263,7 +287,7 @@ describe('auction', () => {
 
     it('returns early when no available fees (funds is 0)', async () => {
       const mockPublicClient = createProcessAuctionsMockClient({
-        startPrice: 1000000000000000000n,
+        startPrice: 1n,
         startTime: 1700000000n,
         funds: 0n, // No available fees
       })
@@ -292,9 +316,9 @@ describe('auction', () => {
       }))
 
       const mockPublicClient = createProcessAuctionsMockClient({
-        startPrice: 1000000000000000000n,
+        startPrice: 1n,
         startTime: 1700000000n,
-        funds: 500000000000000000n,
+        funds: 1n,
       })
 
       await processAuctions({
@@ -321,7 +345,7 @@ describe('auction', () => {
       // Return a swap quote with output less than total cost
       mockGetSwapQuote = mock.fn(async () => ({
         status: RouteStatus.Success,
-        assumedAmountOut: '100000000000000', // 0.0001 FIL - much less than cost
+        assumedAmountOut: '1', // Less than cost
         tx: {
           to: sushiswapRouterAddress,
           data: '0xabcdef',
@@ -330,9 +354,9 @@ describe('auction', () => {
       }))
 
       const mockPublicClient = createProcessAuctionsMockClient({
-        startPrice: 1000000000000000000n, // 1 FIL auction price
+        startPrice: 100n, // High auction price
         startTime: 1700000000n,
-        funds: 500000000000000000n,
+        funds: 1n,
       })
 
       await processAuctions({
@@ -356,12 +380,12 @@ describe('auction', () => {
     })
 
     it('returns early when insufficient balance', async () => {
-      mockGetBalance = mock.fn(async () => 100000000000000n) // 0.0001 FIL - not enough
+      mockGetBalance = mock.fn(async () => 1n) // Not enough
 
       const mockPublicClient = createProcessAuctionsMockClient({
-        startPrice: 1000000000000000000n, // 1 FIL auction price
+        startPrice: 100n, // High auction price
         startTime: 1700000000n,
-        funds: 500000000000000000n,
+        funds: 1n,
       })
 
       await processAuctions({
@@ -386,9 +410,9 @@ describe('auction', () => {
 
     it('returns early when transaction submission fails', async () => {
       const mockPublicClient = createProcessAuctionsMockClient({
-        startPrice: 1000000000000000000n,
+        startPrice: 1n,
         startTime: 1700000000n,
-        funds: 500000000000000000n,
+        funds: 1n,
       })
 
       // Make simulateContract throw to fail bid submission
@@ -421,9 +445,9 @@ describe('auction', () => {
 
     it('completes full flow successfully', async () => {
       const mockPublicClient = createProcessAuctionsMockClient({
-        startPrice: 1000000000000000000n,
+        startPrice: 1n,
         startTime: 1700000000n,
-        funds: 500000000000000000n,
+        funds: 1n,
       })
 
       const mockWalletClient = createMockWalletClient()

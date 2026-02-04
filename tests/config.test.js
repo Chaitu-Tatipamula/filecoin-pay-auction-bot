@@ -70,15 +70,22 @@ describe('config', () => {
     })
 
     it('approves when allowance is not max', async () => {
+      const tokenAddress = '0xtoken0000000000000000000000000000000000'
+      const spenderAddress = '0xspender00000000000000000000000000000000'
+      const mockAccount = {
+        address: '0x1111111111111111111111111111111111111111',
+      }
       const expectedReceipt = {
         transactionHash: '0xapproval1234',
         status: 'success',
       }
 
+      let capturedRequest
       const readContract = mock.fn(async () => 0n)
-      const simulateContract = mock.fn(async () => ({
-        request: { mockRequest: true },
-      }))
+      const simulateContract = mock.fn(async (params) => {
+        capturedRequest = params
+        return { request: params }
+      })
       const waitForTransactionReceipt = mock.fn(async () => expectedReceipt)
       const mockPublicClient = {
         readContract,
@@ -87,42 +94,38 @@ describe('config', () => {
       }
       const writeContract = mock.fn(async () => '0xapproval1234')
       const mockWalletClient = { writeContract }
-      const mockAccount = {
-        address: '0x1111111111111111111111111111111111111111',
-      }
 
       const result = await ensureApproval({
         publicClient: /** @type {any} */ (mockPublicClient),
         walletClient: /** @type {any} */ (mockWalletClient),
         account: /** @type {any} */ (mockAccount),
-        tokenAddress: '0xtoken0000000000000000000000000000000000',
-        spenderAddress: '0xspender00000000000000000000000000000000',
+        tokenAddress,
+        spenderAddress,
       })
 
-      assert.deepEqual(result, expectedReceipt)
+      assert.deepStrictEqual(result, expectedReceipt)
       assert.equal(simulateContract.mock.calls.length, 1)
       assert.equal(writeContract.mock.calls.length, 1)
       assert.equal(waitForTransactionReceipt.mock.calls.length, 1)
 
-      const simCall = simulateContract.mock.calls[0]
-      assert.ok(simCall)
-      assert.deepEqual(simCall.arguments, [
-        {
-          account: mockAccount,
-          address: '0xtoken0000000000000000000000000000000000',
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: ['0xspender00000000000000000000000000000000', maxUint256],
-        },
-      ])
+      const expectedRequest = {
+        account: mockAccount,
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [spenderAddress, maxUint256],
+      }
+      assert.deepStrictEqual(capturedRequest, expectedRequest)
 
       const writeCall = writeContract.mock.calls[0]
       assert.ok(writeCall)
-      assert.deepEqual(writeCall.arguments, [{ mockRequest: true }])
+      assert.deepStrictEqual(writeCall.arguments, [expectedRequest])
 
       const receiptCall = waitForTransactionReceipt.mock.calls[0]
       assert.ok(receiptCall)
-      assert.deepEqual(receiptCall.arguments, [{ hash: '0xapproval1234' }])
+      assert.deepStrictEqual(receiptCall.arguments, [
+        { hash: '0xapproval1234' },
+      ])
     })
   })
 })

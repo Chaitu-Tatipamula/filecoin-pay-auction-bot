@@ -6,7 +6,7 @@ import { getBalance, getTokenBalance } from '../lib/client.js'
 describe('client', () => {
   describe('getBalance', () => {
     it('calls publicClient.getBalance with correct address', async () => {
-      const expectedBalance = 1000000000000000000n
+      const expectedBalance = 1n
       const getBalanceFn = mock.fn(async () => expectedBalance)
       const mockPublicClient = { getBalance: getBalanceFn }
 
@@ -28,7 +28,7 @@ describe('client', () => {
 
   describe('getTokenBalance', () => {
     it('calls readContract with correct parameters for balanceOf', async () => {
-      const expectedBalance = 5000000000000000000n
+      const expectedBalance = 5n
       const readContract = mock.fn(async () => expectedBalance)
       const mockPublicClient = { readContract }
 
