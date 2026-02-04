@@ -5,12 +5,18 @@ import { initializeConfig, ensureApproval } from '../lib/config.js'
 import { processAuctions } from '../lib/auction.js'
 
 const config = await initializeConfig(process.env)
-
 const sushiswapRouterAddress = await discoverSushiswapRouter({
   chainId: config.chainId,
   tokenIn: config.usdfcAddress,
   sender: config.account.address,
 })
+
+if (!sushiswapRouterAddress && config.chainId === 314) {
+  console.error(
+    'Error: Could not discover Sushiswap router address on Filecoin mainnet.',
+  )
+  process.exit(1)
+}
 
 if (sushiswapRouterAddress) {
   await ensureApproval({
