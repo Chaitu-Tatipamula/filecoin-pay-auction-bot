@@ -6,6 +6,4 @@ metadata:
 data:
   RPC_URL: 'https://api.node.glif.io/'
   STATS_INTERVAL: '60000'
-  INFLUXDB_URL: 'http://influxdb:8086'
-  INFLUXDB_ORG: 'filoz'
-  INFLUXDB_BUCKET: 'auction-stats'
+  METRICS_PORT: '9090'

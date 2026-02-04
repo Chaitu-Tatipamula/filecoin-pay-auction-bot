@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@filoz/synapse-core": "^0.1.4",
-    "@influxdata/influxdb-client": "^1.35.0",
     "dotenv": "^17.2.3",
+    "prom-client": "^15.1.0",
     "sushi": "^6.4.10",
     "viem": "^2.44.4"
   },

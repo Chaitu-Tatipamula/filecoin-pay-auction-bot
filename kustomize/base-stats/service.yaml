@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: auction-stats
+  namespace: filecoin-pay-auction-bot
+  labels:
+    app.kubernetes.io/name: auction-stats
+    app.kubernetes.io/component: stats
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: auction-stats
