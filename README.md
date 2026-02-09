@@ -81,6 +81,41 @@ The bot will:
 8. Wait for configured delay before next check
 9. Repeat indefinitely
 
+## CLI Tool
+
+For manual bidding, a CLI tool is also available:
+
+### List Active Auctions
+
+```bash
+# Mainnet
+npx auction-bidder list
+
+# Calibration testnet
+npx auction-bidder list --network calibration
+
+# Check a specific token
+npx auction-bidder list --network calibration --token 0x...
+```
+
+### Place a Bid
+
+```bash
+npx auction-bidder bid \
+  --token 0xb3042... \
+  --private-key 0x... \
+  --network calibration
+```
+
+**Options:**
+
+- `--token` (required) - Token address to bid on
+- `--private-key` (required) - Bidder's private key
+- `--amount` (optional) - Amount to request (default: all)
+- `--pay` (optional) - FIL amount to pay (default: calculated price + 0.5% buffer)
+- `--network` (optional) - `mainnet` or `calibration`
+- `--rpc` (optional) - Custom RPC URL
+
 ## Kubernetes Deployment
 
 The auction bot can be deployed to Kubernetes using the provided [kustomize](https://kustomize.io/) manifests. This approach is suitable for production deployments and provides better resource management, monitoring, and operational capabilities.

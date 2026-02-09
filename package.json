@@ -5,6 +5,9 @@
   "license": "MIT",
   "type": "module",
   "main": "index.js",
+  "bin": {
+    "auction-bidder": "bin/cli.js"
+  },
   "scripts": {
     "lint": "eslint && prettier --check . && tsc -p .",
     "lint:fix": "eslint --fix && prettier --write .",
@@ -14,6 +17,8 @@
   },
   "dependencies": {
     "@filoz/synapse-core": "^0.1.4",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
     "dotenv": "^17.2.3",
     "sushi": "^6.4.10",
     "viem": "^2.44.4"
