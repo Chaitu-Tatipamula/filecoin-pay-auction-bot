@@ -10,7 +10,7 @@
     "lint:fix": "eslint --fix && prettier --write .",
     "start": "node bin/bot.js",
     "test": "npm run lint && npm run test:unit",
-    "test:unit": "node --test"
+    "test:unit": "node --test 'tests/**/*.test.js'"
   },
   "dependencies": {
     "@filoz/synapse-core": "^0.1.4",

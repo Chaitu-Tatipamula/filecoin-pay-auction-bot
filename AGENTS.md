@@ -20,19 +20,13 @@ npm run test:unit       # Run only unit tests
 - **JSDoc + TypeScript** - Type annotations in comments, TypeScript only for type checking
 - **Node.js native test runner** - Uses `node:test` module
 
-## Architecture
-
-### Two-Layer Design
-
-1. **Library Layer** ([index.js](index.js)) - Pure functions, all exported for testing
-2. **Application Layer** ([bin/bot.js](bin/bot.js)) - Event loop with error handling
-
 ### Key Design Decisions
 
 - **Stateless** - No database, queries contract fresh each iteration
 - **Direct wallet bidding** - No account deposit needed
 - **Deterministic auction selection** - Always picks first auction with available fees
 - **100% bids** - Always bids for all available fees if balance is sufficient
+- **Auto-refuel** - Swaps acquired USDFC back to FIL after successful bids (mainnet only)
 
 ## Coding Conventions
 
@@ -90,13 +84,26 @@ The `createClient` function supports both networks: `mainnet` and `calibration`.
 
 ### Sushiswap Integration
 
-The bot uses Sushiswap's REST API for price checking:
+The bot uses Sushiswap's SDK for swap quoting.
 
-- **API endpoint**: `https://api.sushi.com/quote/v7/{chainId}`
-- **Quote pair**: USDFC → native FIL
-- **Quote network**: Always queries mainnet (chain ID 314) for accurate pricing
-- **Quote function**: REST API with `tokenIn`, `tokenOut`, `amount`, `maxSlippage`
-- **Max slippage**: Default 0.005 (0.5%)
-- **Profitability logic**: Bot bids only if market price >= auction price
-- **Error handling**: Quote failures skip auction and log warning, continue monitoring
-- **Implementation**: Uses Sushi's EVM SDK `getQuote` function from `sushi/evm`
+#### Frontrunning Protection (Nonce+1)
+
+To reduce the frontrunning window, both `burnForFees` and swap transactions are submitted simultaneously:
+
+1. Get current nonce N
+2. Submit `burnForFees` with nonce N
+3. Immediately submit swap with nonce N+1 (don't wait for bid confirmation)
+4. Wait for both receipts in parallel
+
+This ensures both transactions hit the mempool together. If `burnForFees` fails, the swap should also fail due to nonce ordering.
+
+#### Flow on Mainnet
+
+1. At startup: Discover Sushiswap router → Approve USDFC for router
+2. Each iteration: Get balances → Get auction info → Get swap quote → Check profitability → Submit bid+swap simultaneously (nonce+1)
+
+#### Error Handling
+
+- If bid+swap both fail, USDFC (if any) is held for next iteration
+- Quote failures skip the auction (no bid placed)
+- If bid succeeds but swap fails, USDFC held for next iteration
