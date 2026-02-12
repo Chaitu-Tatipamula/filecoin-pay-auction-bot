@@ -5,9 +5,6 @@
   "license": "MIT",
   "type": "module",
   "main": "index.js",
-  "bin": {
-    "auction-bidder": "bin/cli.js"
-  },
   "scripts": {
     "lint": "eslint && prettier --check . && tsc -p .",
     "lint:fix": "eslint --fix && prettier --write .",

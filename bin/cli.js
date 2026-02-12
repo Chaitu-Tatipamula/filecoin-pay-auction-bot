@@ -2,54 +2,48 @@
 /** Auction Bidder CLI - Manual bidding tool for FilecoinPay fee auctions */
 import { Command } from 'commander'
 import chalk from 'chalk'
-import { createPublicClient, parseEther, http, extractChain } from 'viem'
-import { filecoin, filecoinCalibration } from 'viem/chains'
 import {
-  createClient,
-  getBalance,
-  getActiveAuction,
-  placeBid,
-} from '../index.js'
+  createPublicClient,
+  parseEther,
+  parseUnits,
+  formatEther,
+  formatUnits,
+  http,
+  extractChain,
+} from 'viem'
+import { filecoin, filecoinCalibration } from 'viem/chains'
+import { getActiveAuction, placeBid } from '../lib/auction.js'
+import { createClient, getBalance } from '../lib/client.js'
 import { auctionPriceAt } from '@filoz/synapse-core/auction'
 import { getChain } from '@filoz/synapse-core/chains'
 
-const program = new Command()
+const CHAIN_ID_MAINNET = 314
+const CHAIN_ID_CALIBRATION = 314159
 
-program
-  .name('auction-bidder')
-  .description('CLI tool for bidding on FilecoinPay fee auctions')
-  .version('1.0.0')
+const RPC_URLS = {
+  [CHAIN_ID_MAINNET]: 'https://api.node.glif.io/',
+  [CHAIN_ID_CALIBRATION]: 'https://api.calibration.node.glif.io/',
+}
 
-// Known tokens
 const KNOWN_TOKENS = {
-  314: [
+  [CHAIN_ID_MAINNET]: [
     { address: '0x80B98d3aa09ffff255c3ba4A241111Ff1262F045', symbol: 'USDFC' },
   ],
-  314159: [
+  [CHAIN_ID_CALIBRATION]: [
     { address: '0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0', symbol: 'USDFC' },
   ],
 }
 
 /**
- * @param {bigint} wei
- * @returns {string}
+ * @param {string} network
+ * @returns {{ chainId: 314 | 314159; networkName: string }}
  */
-function formatFIL(wei) {
-  const fil = Number(wei) / 1e18
-  if (fil === 0) return '0'
-  if (fil < 0.000001) return `${wei.toString()} wei`
-  return fil.toFixed(6)
-}
-
-/**
- * @param {bigint} wei
- * @param {number} decimals
- * @returns {string}
- */
-function formatTokenAmount(wei, decimals = 18) {
-  const amount = Number(wei) / Math.pow(10, decimals)
-  if (amount === 0) return '0'
-  return amount.toLocaleString(undefined, { maximumFractionDigits: 6 })
+function resolveNetwork(network) {
+  const normalized = network.trim().toLowerCase()
+  if (normalized === 'mainnet') {
+    return { chainId: CHAIN_ID_MAINNET, networkName: 'Mainnet' }
+  }
+  return { chainId: CHAIN_ID_CALIBRATION, networkName: 'Calibration' }
 }
 
 /**
@@ -74,6 +68,23 @@ function getPaymentsContract(chainId) {
   return chain.contracts.payments.address
 }
 
+/**
+ * @param {number} chainId
+ * @param {string} txHash
+ * @returns {string}
+ */
+function getTxUrl(chainId, txHash) {
+  const prefix = chainId === CHAIN_ID_CALIBRATION ? 'calibration.' : ''
+  return `https://${prefix}filfox.info/en/tx/${txHash}`
+}
+
+const program = new Command()
+
+program
+  .name('auction-bidder')
+  .description('CLI tool for bidding on FilecoinPay fee auctions')
+  .version('1.0.0')
+
 // LIST command
 program
   .command('list')
@@ -81,19 +92,13 @@ program
   .option(
     '-n, --network <network>',
     'Network (mainnet or calibration)',
-    'mainnet',
+    'calibration',
   )
   .option('-t, --token <address>', 'Check a specific token address')
   .option('--rpc <url>', 'Custom RPC URL')
   .action(async (options) => {
-    const chainId = options.network === 'calibration' ? 314159 : 314
-    const networkName =
-      options.network === 'calibration' ? 'Calibration' : 'Mainnet'
-    const rpcUrl =
-      options.rpc ||
-      (chainId === 314159
-        ? 'https://api.calibration.node.glif.io/'
-        : 'https://api.node.glif.io/')
+    const { chainId, networkName } = resolveNetwork(options.network)
+    const rpcUrl = options.rpc || RPC_URLS[chainId]
 
     console.log(chalk.bold.cyan(`\nActive Auctions on Filecoin ${networkName}`))
     console.log(chalk.gray('━'.repeat(50)))
@@ -122,9 +127,9 @@ program
       found = true
       console.log(chalk.bold.white(`Token: ${token.symbol} (${token.address})`))
       console.log(
-        `  ${chalk.green('Available:')} ${formatTokenAmount(auction.availableFees)} ${token.symbol}`,
+        `  ${chalk.green('Available:')} ${formatUnits(auction.availableFees, 18)} ${token.symbol}`,
       )
-      console.log(`  ${chalk.blue('Price:')} ${formatFIL(currentPrice)} FIL`)
+      console.log(`  ${chalk.blue('Price:')} ${formatEther(currentPrice)} FIL`)
       if (auction.startTime > 0n) {
         console.log(
           `  ${chalk.gray('Started:')} ${formatTimeAgo(auction.startTime)}`,
@@ -157,18 +162,12 @@ program
   .option(
     '-n, --network <network>',
     'Network (mainnet or calibration)',
-    'mainnet',
+    'calibration',
   )
   .option('--rpc <url>', 'Custom RPC URL')
   .action(async (options) => {
-    const chainId = options.network === 'calibration' ? 314159 : 314
-    const networkName =
-      options.network === 'calibration' ? 'Calibration' : 'Mainnet'
-    const rpcUrl =
-      options.rpc ||
-      (chainId === 314159
-        ? 'https://api.calibration.node.glif.io/'
-        : 'https://api.node.glif.io/')
+    const { chainId, networkName } = resolveNetwork(options.network)
+    const rpcUrl = options.rpc || RPC_URLS[chainId]
 
     console.log(chalk.bold.cyan(`\nPlacing Bid on Filecoin ${networkName}`))
     console.log(chalk.gray('━'.repeat(50)))
@@ -182,49 +181,40 @@ program
     const auction = await getActiveAuction(publicClient, options.token)
 
     if (!auction) {
-      console.log(chalk.red('Error: No active auction for this token.'))
+      console.error(chalk.red('Error: No active auction for this token.'))
       return
     }
 
     if (auction.availableFees === 0n) {
-      console.log(chalk.red('Error: No tokens available in auction.'))
+      console.error(chalk.red('Error: No tokens available in auction.'))
       return
     }
 
     const requestAmount = options.amount
-      ? BigInt(options.amount)
+      ? parseUnits(options.amount, 18)
       : auction.availableFees
 
-    const now = BigInt(Math.floor(Date.now() / 1000))
-    const currentPrice = auctionPriceAt(auction, now)
+    const block = await publicClient.getBlock()
+    const currentPrice = auctionPriceAt(auction, block.timestamp)
 
-    let bidValue
-    if (options.pay) {
-      bidValue = parseEther(options.pay)
-    } else if (requestAmount === auction.availableFees) {
-      // Add 0.5% buffer to account for block timing differences
-      bidValue = currentPrice + currentPrice / 200n
-    } else {
-      const proportionalPrice =
-        (currentPrice * requestAmount) / auction.availableFees
-      bidValue = proportionalPrice + proportionalPrice / 200n
-    }
+    // Contract requires value >= full auction price regardless of requested amount
+    const bidValue = options.pay ? parseEther(options.pay) : currentPrice
 
     console.log(chalk.white(`Token: ${options.token}`))
     console.log(
-      chalk.white(`Available: ${formatTokenAmount(auction.availableFees)}`),
+      chalk.white(`Available: ${formatUnits(auction.availableFees, 18)}`),
     )
-    console.log(chalk.white(`Requesting: ${formatTokenAmount(requestAmount)}`))
-    console.log(chalk.white(`Price: ${formatFIL(bidValue)} FIL`))
+    console.log(chalk.white(`Requesting: ${formatUnits(requestAmount, 18)}`))
+    console.log(chalk.white(`Price: ${formatEther(bidValue)} FIL`))
     console.log()
 
     console.log(chalk.gray(`Bidder: ${account.address}`))
 
     const balance = await getBalance(publicClient, account.address)
     if (balance < bidValue) {
-      console.log(
+      console.error(
         chalk.red(
-          `\nError: Insufficient balance. Have ${formatFIL(balance)}, need ${formatFIL(bidValue)}`,
+          `\nError: Insufficient balance. Have ${formatEther(balance)}, need ${formatEther(bidValue)}`,
         ),
       )
       return
@@ -233,7 +223,7 @@ program
     console.log(chalk.yellow('\nSubmitting transaction...'))
 
     try {
-      const receipt = await placeBid({
+      const txHash = await placeBid({
         walletClient,
         publicClient,
         account,
@@ -243,29 +233,27 @@ program
         price: bidValue,
       })
 
-      console.log(
-        chalk.green(`\n✓ Transaction submitted: ${receipt.transactionHash}`),
-      )
-      console.log(
-        chalk.gray(
-          `  View: https://${chainId === 314159 ? 'calibration.' : ''}filfox.info/en/tx/${receipt.transactionHash}`,
-        ),
-      )
+      console.log(chalk.green(`\n✓ Transaction submitted: ${txHash}`))
+      console.log(chalk.gray(`  View: ${getTxUrl(chainId, txHash)}`))
+
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      })
 
       if (receipt.status === 'success') {
         console.log(chalk.green.bold('\nBid successful!'))
         console.log(
-          chalk.white(
-            `  Purchased: ${formatTokenAmount(requestAmount)} tokens`,
-          ),
+          chalk.white(`  Purchased: ${formatUnits(requestAmount, 18)} tokens`),
         )
-        console.log(chalk.white(`  Paid: ${formatFIL(bidValue)} FIL (burned)`))
+        console.log(
+          chalk.white(`  Paid: ${formatEther(bidValue)} FIL (burned)`),
+        )
       } else {
-        console.log(chalk.red('\nTransaction failed'))
+        console.error(chalk.red('\nTransaction failed'))
       }
     } catch (err) {
       const error = /** @type {Error} */ (err)
-      console.log(chalk.red(`\nError: ${error.message || error}`))
+      console.error(chalk.red(`\nError: ${error.message || error}`))
       process.exit(1)
     }
   })

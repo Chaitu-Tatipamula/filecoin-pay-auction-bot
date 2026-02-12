@@ -88,20 +88,20 @@ For manual bidding, a CLI tool is also available:
 ### List Active Auctions
 
 ```bash
-# Mainnet
-npx auction-bidder list
+# Calibration network (default)
+node bin/cli.js list
 
-# Calibration testnet
-npx auction-bidder list --network calibration
+# Mainnet
+node bin/cli.js list --network mainnet
 
 # Check a specific token
-npx auction-bidder list --network calibration --token 0x...
+node bin/cli.js list --token 0x...
 ```
 
 ### Place a Bid
 
 ```bash
-npx auction-bidder bid \
+node bin/cli.js bid \
   --token 0xb3042... \
   --private-key 0x... \
   --network calibration
@@ -112,8 +112,8 @@ npx auction-bidder bid \
 - `--token` (required) - Token address to bid on
 - `--private-key` (required) - Bidder's private key
 - `--amount` (optional) - Amount to request (default: all)
-- `--pay` (optional) - FIL amount to pay (default: calculated price + 0.5% buffer)
-- `--network` (optional) - `mainnet` or `calibration`
+- `--pay` (optional) - FIL amount to pay (default: calculated price)
+- `--network` (optional) - `mainnet` or `calibration` (default: `calibration`)
 - `--rpc` (optional) - Custom RPC URL
 
 ## Kubernetes Deployment
