@@ -14,69 +14,16 @@ import {
 import { filecoin, filecoinCalibration } from 'viem/chains'
 import { getActiveAuction, placeBid } from '../lib/auction.js'
 import { createClient, getBalance } from '../lib/client.js'
+import {
+  logReceipt,
+  getTxUrl,
+  getTokenSymbol,
+  formatTimeAgo,
+  getPaymentsContract,
+  resolveNetwork,
+} from '../lib/helpers.js'
+import { RPC_URLS, KNOWN_TOKENS } from '../lib/constants.js'
 import { auctionPriceAt } from '@filoz/synapse-core/auction'
-import { getChain } from '@filoz/synapse-core/chains'
-
-const CHAIN_ID_MAINNET = 314
-const CHAIN_ID_CALIBRATION = 314159
-
-const RPC_URLS = {
-  [CHAIN_ID_MAINNET]: 'https://api.node.glif.io/',
-  [CHAIN_ID_CALIBRATION]: 'https://api.calibration.node.glif.io/',
-}
-
-const KNOWN_TOKENS = {
-  [CHAIN_ID_MAINNET]: [
-    { address: '0x80B98d3aa09ffff255c3ba4A241111Ff1262F045', symbol: 'USDFC' },
-  ],
-  [CHAIN_ID_CALIBRATION]: [
-    { address: '0xb3042734b608a1B16e9e86B374A3f3e389B4cDf0', symbol: 'USDFC' },
-  ],
-}
-
-/**
- * @param {string} network
- * @returns {{ chainId: 314 | 314159; networkName: string }}
- */
-function resolveNetwork(network) {
-  const normalized = network.trim().toLowerCase()
-  if (normalized === 'mainnet') {
-    return { chainId: CHAIN_ID_MAINNET, networkName: 'Mainnet' }
-  }
-  return { chainId: CHAIN_ID_CALIBRATION, networkName: 'Calibration' }
-}
-
-/**
- * @param {bigint} timestamp
- * @returns {string}
- */
-function formatTimeAgo(timestamp) {
-  const now = BigInt(Math.floor(Date.now() / 1000))
-  const elapsed = now - timestamp
-  if (elapsed < 60n) return `${elapsed}s ago`
-  if (elapsed < 3600n) return `${elapsed / 60n}m ago`
-  if (elapsed < 86400n) return `${elapsed / 3600n}h ago`
-  return `${elapsed / 86400n}d ago`
-}
-
-/**
- * @param {number} chainId
- * @returns {string}
- */
-function getPaymentsContract(chainId) {
-  const chain = getChain(chainId)
-  return chain.contracts.payments.address
-}
-
-/**
- * @param {number} chainId
- * @param {string} txHash
- * @returns {string}
- */
-function getTxUrl(chainId, txHash) {
-  const prefix = chainId === CHAIN_ID_CALIBRATION ? 'calibration.' : ''
-  return `https://${prefix}filfox.info/en/tx/${txHash}`
-}
 
 const program = new Command()
 
@@ -99,6 +46,14 @@ program
   .action(async (options) => {
     const { chainId, networkName } = resolveNetwork(options.network)
     const rpcUrl = options.rpc || RPC_URLS[chainId]
+    const transport = http(rpcUrl)
+    const publicClient = createPublicClient({
+      chain: extractChain({
+        chains: [filecoin, filecoinCalibration],
+        id: chainId,
+      }),
+      transport,
+    })
 
     console.log(chalk.bold.cyan(`\nActive Auctions on Filecoin ${networkName}`))
     console.log(chalk.gray('━'.repeat(50)))
@@ -106,28 +61,31 @@ program
     const paymentsContract = getPaymentsContract(chainId)
     console.log(chalk.gray(`Payments Contract: ${paymentsContract}\n`))
 
-    const chain = extractChain({
-      chains: [filecoin, filecoinCalibration],
-      id: chainId,
-    })
-    const publicClient = createPublicClient({ chain, transport: http(rpcUrl) })
-
     const tokensToCheck = options.token
-      ? [{ address: options.token, symbol: 'Custom' }]
-      : KNOWN_TOKENS[chainId] || []
+      ? [/** @type {import('viem').Address} */ (options.token)]
+      : Object.keys(KNOWN_TOKENS)
 
     let found = false
-    for (const token of tokensToCheck) {
-      const auction = await getActiveAuction(publicClient, token.address)
-      if (!auction) continue
+    const now = BigInt(Math.floor(Date.now() / 1000))
 
-      const now = BigInt(Math.floor(Date.now() / 1000))
+    for (const tokenAddress of tokensToCheck) {
+      const addr = /** @type {import('viem').Address} */ (tokenAddress)
+      const auction = await getActiveAuction(publicClient, addr)
+      const symbol = await getTokenSymbol(publicClient, addr)
+
+      if (!auction) {
+        if (options.token) {
+          console.log(chalk.gray(`- ${symbol}: No active auction`))
+        }
+        continue
+      }
+
       const currentPrice = auctionPriceAt(auction, now)
 
       found = true
-      console.log(chalk.bold.white(`Token: ${token.symbol} (${token.address})`))
+      console.log(chalk.bold.white(`Token: ${symbol} (${addr})`))
       console.log(
-        `  ${chalk.green('Available:')} ${formatUnits(auction.availableFees, 18)} ${token.symbol}`,
+        `  ${chalk.green('Available:')} ${formatUnits(auction.availableFees, 18)} ${symbol}`,
       )
       console.log(`  ${chalk.blue('Price:')} ${formatEther(currentPrice)} FIL`)
       if (auction.startTime > 0n) {
@@ -200,11 +158,17 @@ program
     // Contract requires value >= full auction price regardless of requested amount
     const bidValue = options.pay ? parseEther(options.pay) : currentPrice
 
-    console.log(chalk.white(`Token: ${options.token}`))
+    const symbol = await getTokenSymbol(publicClient, options.token)
+
+    console.log(chalk.white(`Token: ${symbol} (${options.token})`))
     console.log(
-      chalk.white(`Available: ${formatUnits(auction.availableFees, 18)}`),
+      chalk.white(
+        `Available: ${formatUnits(auction.availableFees, 18)} ${symbol}`,
+      ),
     )
-    console.log(chalk.white(`Requesting: ${formatUnits(requestAmount, 18)}`))
+    console.log(
+      chalk.white(`Requesting: ${formatUnits(requestAmount, 18)} ${symbol}`),
+    )
     console.log(chalk.white(`Price: ${formatEther(bidValue)} FIL`))
     console.log()
 
@@ -240,10 +204,14 @@ program
         hash: txHash,
       })
 
+      logReceipt('Bid result', receipt)
+
       if (receipt.status === 'success') {
         console.log(chalk.green.bold('\nBid successful!'))
         console.log(
-          chalk.white(`  Purchased: ${formatUnits(requestAmount, 18)} tokens`),
+          chalk.white(
+            `  Purchased: ${formatUnits(requestAmount, 18)} ${symbol}`,
+          ),
         )
         console.log(
           chalk.white(`  Paid: ${formatEther(bidValue)} FIL (burned)`),
